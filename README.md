@@ -1,26 +1,76 @@
-## Configuración inicial de Laravel
+# Auth API
 
-Una vez creado el archivo `.env` a partir de `.env.example`, continuar con los siguientes pasos.
+Microservicio de autenticación desarrollado con Laravel 13 y Laravel Passport.
 
-### 1. Generar la APP_KEY de Laravel
+## Stack
 
-```bash
-docker compose exec app php artisan key:generate
-```
+- Laravel 13
+- PHP 8.5-FPM
+- Laravel Passport
+- MariaDB 11.8
+- Nginx
+- Docker Compose
 
-Esto generará automáticamente el valor de:
+El entorno Docker utiliza Nginx exclusivamente para desarrollo local.
 
-```env
-APP_KEY=
-```
-
-dentro del archivo `.env`.
+El entorno de producción utiliza LiteSpeed como servidor web.
 
 ---
 
-### 2. Verificar la conexión a MariaDB
+# Arquitectura local
 
-Revisar que la configuración de base de datos en `.env` coincida con la definida en `docker-compose.yml`.
+```text
+Cliente
+  │
+  ▼
+Nginx
+  │
+  ▼
+PHP 8.5-FPM
+  │
+  ▼
+Laravel 13
+  │
+  ├── Laravel Passport
+  │
+  └── Eloquent
+        │
+        ▼
+   MariaDB 11.8
+```
+
+---
+
+# Requisitos
+
+Para levantar el proyecto localmente se necesita:
+
+- Docker
+- Docker Compose v2
+- Git
+
+No es necesario tener PHP, Composer, Nginx ni MariaDB instalados localmente si todo se ejecuta mediante Docker.
+
+---
+
+# Clonar el proyecto
+
+```bash
+git clone <URL_DEL_REPOSITORIO>
+cd auth-api
+```
+
+---
+
+# Configurar variables de entorno
+
+Crear el archivo `.env` a partir de `.env.example`:
+
+```bash
+cp .env.example .env
+```
+
+La configuración de base de datos debe coincidir con los valores definidos en `docker-compose.yml`.
 
 Ejemplo:
 
@@ -33,33 +83,118 @@ DB_USERNAME=auth_user
 DB_PASSWORD=secret
 ```
 
-Aunque la base de datos sea MariaDB, Laravel utiliza:
+Aunque se utilice MariaDB, Laravel utiliza:
 
 ```env
 DB_CONNECTION=mysql
 ```
 
-mediante el driver `pdo_mysql`.
+porque la conexión se realiza mediante el driver `pdo_mysql`.
 
 ---
 
-## Laravel Passport
+# Construir las imágenes Docker
 
-### 3. Verificar si Laravel Passport está instalado
+```bash
+docker compose build
+```
+
+---
+
+# Levantar los containers
+
+```bash
+docker compose up -d
+```
+
+Verificar que todos los servicios estén funcionando:
+
+```bash
+docker compose ps
+```
+
+Los servicios principales son:
+
+```text
+app
+nginx
+mariadb
+```
+
+---
+
+# Instalar dependencias
+
+Si el directorio `vendor/` no existe:
+
+```bash
+docker compose exec app composer install
+```
+
+Si `vendor/` ya existe y las dependencias están correctamente instaladas, este paso puede omitirse.
+
+---
+
+# Generar APP_KEY de Laravel
+
+```bash
+docker compose exec app php artisan key:generate
+```
+
+Esto completa automáticamente:
+
+```env
+APP_KEY=
+```
+
+dentro del archivo `.env`.
+
+---
+
+# Permisos de Laravel
+
+Laravel necesita permisos de escritura sobre:
+
+```text
+storage/
+bootstrap/cache/
+```
+
+Configurar el propietario:
+
+```bash
+docker compose exec app chown -R www-data:www-data storage bootstrap/cache
+```
+
+Configurar permisos:
+
+```bash
+docker compose exec app chmod -R 775 storage bootstrap/cache
+```
+
+No utilizar:
+
+```bash
+chmod -R 777 .
+```
+
+---
+
+# Laravel Passport
+
+## Verificar si Passport está instalado
 
 ```bash
 docker compose exec app composer show laravel/passport
 ```
 
-También se puede verificar mediante Artisan:
+También se pueden consultar los comandos disponibles:
 
 ```bash
 docker compose exec app php artisan list | grep passport
 ```
 
-Si Passport está correctamente instalado, deberían aparecer comandos relacionados con Passport.
-
-### 4. Instalar Laravel Passport si no está instalado
+Si Passport no está instalado:
 
 ```bash
 docker compose exec app composer require laravel/passport
@@ -67,38 +202,107 @@ docker compose exec app composer require laravel/passport
 
 ---
 
-### 5. Ejecutar las migraciones
+# Ejecutar migraciones
 
 ```bash
 docker compose exec app php artisan migrate
 ```
 
-Esto creará las tablas necesarias de Laravel y Passport en MariaDB.
+Para comprobar el estado:
+
+```bash
+docker compose exec app php artisan migrate:status
+```
 
 ---
 
-### 6. Instalar/configurar Passport
+# Ejecutar Seeders
+
+Ejecutar todos los seeders definidos en `DatabaseSeeder`:
 
 ```bash
-docker compose exec app php artisan passport:install
+docker compose exec app php artisan db:seed
 ```
 
-Este comando prepara Laravel Passport y puede generar los clientes OAuth necesarios.
-
-Si únicamente se necesitan generar las claves OAuth:
+También es posible ejecutar migraciones y seeders juntos:
 
 ```bash
-docker compose exec app php artisan passport:keys
+docker compose exec app php artisan migrate --seed
 ```
 
-Las claves se generan normalmente en:
+Para ejecutar un seeder específico:
+
+```bash
+docker compose exec app php artisan db:seed --class=NombreDelSeeder
+```
+
+Ejemplo:
+
+```bash
+docker compose exec app php artisan db:seed --class=UserSeeder
+```
+
+---
+
+# Generar las claves OAuth de Passport
+
+Laravel Passport utiliza un par de claves RSA:
 
 ```text
 storage/oauth-private.key
 storage/oauth-public.key
 ```
 
-Estas claves no deben versionarse en Git.
+Generarlas ejecutando:
+
+```bash
+docker compose exec --user www-data app php artisan passport:keys
+```
+
+Si las claves ya existen y se necesita regenerarlas:
+
+```bash
+docker compose exec --user www-data app php artisan passport:keys --force
+```
+
+---
+
+# Permisos de las claves de Passport
+
+Asignar las claves al usuario utilizado por PHP-FPM:
+
+```bash
+docker compose exec app chown www-data:www-data storage/oauth-private.key storage/oauth-public.key
+```
+
+La clave privada debe tener permisos restrictivos:
+
+```bash
+docker compose exec app chmod 600 storage/oauth-private.key
+```
+
+La clave pública puede ser legible:
+
+```bash
+docker compose exec app chmod 644 storage/oauth-public.key
+```
+
+Se puede verificar con:
+
+```bash
+docker compose exec app ls -la storage/oauth-*
+```
+
+El resultado debería ser similar a:
+
+```text
+-rw------- www-data www-data oauth-private.key
+-rw-r--r-- www-data www-data oauth-public.key
+```
+
+---
+
+# No versionar las claves OAuth
 
 Verificar que `.gitignore` contenga:
 
@@ -107,95 +311,672 @@ Verificar que `.gitignore` contenga:
 /storage/oauth-public.key
 ```
 
----
-
-## Verificaciones
-
-### Ver las rutas disponibles
-
-```bash
-docker compose exec app php artisan route:list
-```
-
-### Ver comandos disponibles de Passport
-
-```bash
-docker compose exec app php artisan list | grep passport
-```
-
-### Ver estado de las migraciones
-
-```bash
-docker compose exec app php artisan migrate:status
-```
+La clave privada nunca debe subirse al repositorio.
 
 ---
 
-## Comandos útiles
+# Habilitar Password Grant
 
-### Ingresar al container de PHP
+Si el proyecto utiliza OAuth2 Password Grant, verificar que esté habilitado.
 
-```bash
-docker compose exec app bash
+En:
+
+```text
+app/Providers/AppServiceProvider.php
 ```
 
-### Ejecutar comandos Artisan
+debe existir:
 
-```bash
-docker compose exec app php artisan
+```php
+use Laravel\Passport\Passport;
+
+public function boot(): void
+{
+    Passport::enablePasswordGrant();
+}
 ```
 
-### Ejecutar Composer
+---
 
-```bash
-docker compose exec app composer
+# Crear el cliente OAuth Password Grant
+
+Para generar:
+
+```env
+PASSPORT_PASSWORD_CLIENT_ID=
+PASSPORT_PASSWORD_CLIENT_SECRET=
 ```
 
-### Limpiar caches de Laravel
+ejecutar:
+
+```bash
+docker compose exec app php artisan passport:client --password
+```
+
+Passport solicitará un nombre para el cliente.
+
+Ejemplo:
+
+```text
+Auth API Password Client
+```
+
+Al finalizar mostrará información similar a:
+
+```text
+Client ID: 1
+Client Secret: xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+Copiar esos valores al archivo `.env`:
+
+```env
+PASSPORT_PASSWORD_CLIENT_ID=1
+PASSPORT_PASSWORD_CLIENT_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+```
+
+No generar manualmente estos valores.
+
+Los valores deben provenir del comando:
+
+```bash
+php artisan passport:client --password
+```
+
+---
+
+# Configuración de Passport
+
+Si el proyecto utiliza `config/services.php` para acceder a las credenciales, verificar que exista:
+
+```php
+'passport' => [
+    'password_client_id' => env('PASSPORT_PASSWORD_CLIENT_ID'),
+    'password_client_secret' => env('PASSPORT_PASSWORD_CLIENT_SECRET'),
+],
+```
+
+Luego de modificar `.env` ejecutar:
 
 ```bash
 docker compose exec app php artisan optimize:clear
 ```
 
-### Ver los containers activos
+---
+
+# Verificar el cliente OAuth
+
+Se puede verificar directamente desde Laravel Tinker:
 
 ```bash
-docker compose ps
+docker compose exec app php artisan tinker
 ```
 
-### Ver logs
+Dentro de Tinker:
+
+```php
+DB::table('oauth_clients')->get();
+```
+
+Debe aparecer el cliente creado mediante:
 
 ```bash
-docker compose logs -f
+php artisan passport:client --password
 ```
 
-### Ver logs del container PHP
+Para salir:
+
+```php
+exit
+```
+
+---
+
+# Crear un usuario de prueba
+
+Passport no crea usuarios.
+
+Los usuarios pertenecen al modelo `User` de Laravel.
+
+Si los seeders ya crean usuarios, este paso no es necesario.
+
+Para crear uno manualmente:
 
 ```bash
-docker compose logs -f app
+docker compose exec app php artisan tinker
 ```
 
-### Detener el entorno
+Dentro de Tinker:
+
+```php
+use App\Models\User;
+use Illuminate\Support\Facades\Hash;
+
+User::create([
+    'name' => 'Usuario Test',
+    'email' => 'test@example.com',
+    'password' => Hash::make('12345678'),
+]);
+```
+
+Consultar usuarios:
+
+```php
+User::all();
+```
+
+Salir:
+
+```php
+exit
+```
+
+---
+
+# Limpiar caché de Laravel
+
+Después de modificar `.env`, configuración o Passport:
 
 ```bash
-docker compose down
+docker compose exec app php artisan optimize:clear
 ```
 
-### Volver a levantarlo
+---
+
+# Verificar las rutas
+
+```bash
+docker compose exec app php artisan route:list
+```
+
+---
+
+# Verificar los comandos de Passport
+
+```bash
+docker compose exec app php artisan list | grep passport
+```
+
+---
+
+# Flujo de instalación completo
+
+Para una instalación nueva, el flujo recomendado es:
+
+```bash
+cp .env.example .env
+```
+
+Construir Docker:
+
+```bash
+docker compose build
+```
+
+Levantar containers:
 
 ```bash
 docker compose up -d
 ```
 
-## Stack local
+Instalar dependencias si fuera necesario:
 
-El entorno local utiliza:
+```bash
+docker compose exec app composer install
+```
 
-- Laravel 13
-- PHP 8.5-FPM
-- Nginx
-- MariaDB 11.8
-- Laravel Passport
-- Docker Compose
+Generar APP_KEY:
 
-El entorno de producción utiliza LiteSpeed como servidor web, mientras que Nginx se utiliza únicamente en el entorno Docker local.
+```bash
+docker compose exec app php artisan key:generate
+```
+
+Configurar permisos:
+
+```bash
+docker compose exec app chown -R www-data:www-data storage bootstrap/cache
+docker compose exec app chmod -R 775 storage bootstrap/cache
+```
+
+Ejecutar migraciones y seeders:
+
+```bash
+docker compose exec app php artisan migrate --seed
+```
+
+Generar claves OAuth:
+
+```bash
+docker compose exec --user www-data app php artisan passport:keys
+```
+
+Configurar permisos de las claves:
+
+```bash
+docker compose exec app chown www-data:www-data storage/oauth-private.key storage/oauth-public.key
+
+docker compose exec app chmod 600 storage/oauth-private.key
+docker compose exec app chmod 644 storage/oauth-public.key
+```
+
+Crear cliente OAuth:
+
+```bash
+docker compose exec app php artisan passport:client --password
+```
+
+Copiar el resultado al `.env`:
+
+```env
+PASSPORT_PASSWORD_CLIENT_ID=
+PASSPORT_PASSWORD_CLIENT_SECRET=
+```
+
+Finalmente limpiar caché:
+
+```bash
+docker compose exec app php artisan optimize:clear
+```
+
+Verificar rutas:
+
+```bash
+docker compose exec app php artisan route:list
+```
+
+---
+
+# Reset completo de la base de datos
+
+Durante desarrollo puede ser necesario eliminar completamente la base y volver a crearla.
+
+Ejecutar:
+
+```bash
+docker compose exec app php artisan migrate:fresh --seed
+```
+
+Este comando:
+
+```text
+elimina todas las tablas
+        ↓
+ejecuta todas las migraciones
+        ↓
+ejecuta DatabaseSeeder
+```
+
+ADVERTENCIA:
+
+Este comando elimina todos los datos existentes.
+
+No utilizar en producción.
+
+---
+
+# Comandos Docker útiles
+
+## Levantar containers
+
+```bash
+docker compose up -d
+```
+
+## Detener containers
+
+```bash
+docker compose down
+```
+
+## Reconstruir las imágenes
+
+```bash
+docker compose up -d --build
+```
+
+## Ver estado
+
+```bash
+docker compose ps
+```
+
+## Ver logs generales
+
+```bash
+docker compose logs -f
+```
+
+## Logs del container PHP
+
+```bash
+docker compose logs -f app
+```
+
+## Logs de Nginx
+
+```bash
+docker compose logs -f nginx
+```
+
+## Logs de MariaDB
+
+```bash
+docker compose logs -f mariadb
+```
+
+---
+
+# Acceder al container PHP
+
+```bash
+docker compose exec app bash
+```
+
+Una vez dentro se pueden ejecutar normalmente comandos Laravel:
+
+```bash
+php artisan
+```
+
+```bash
+php artisan route:list
+```
+
+```bash
+php artisan migrate:status
+```
+
+Para salir:
+
+```bash
+exit
+```
+
+---
+
+# Composer
+
+Consultar versión:
+
+```bash
+docker compose exec app composer --version
+```
+
+Instalar dependencias:
+
+```bash
+docker compose exec app composer install
+```
+
+Actualizar dependencias:
+
+```bash
+docker compose exec app composer update
+```
+
+Agregar una dependencia:
+
+```bash
+docker compose exec app composer require vendor/package
+```
+
+---
+
+# Artisan
+
+Lista de comandos:
+
+```bash
+docker compose exec app php artisan list
+```
+
+Información del entorno Laravel:
+
+```bash
+docker compose exec app php artisan about
+```
+
+Rutas:
+
+```bash
+docker compose exec app php artisan route:list
+```
+
+Migraciones:
+
+```bash
+docker compose exec app php artisan migrate
+```
+
+Seeders:
+
+```bash
+docker compose exec app php artisan db:seed
+```
+
+Limpiar caches:
+
+```bash
+docker compose exec app php artisan optimize:clear
+```
+
+---
+
+# Troubleshooting
+
+## Laravel no puede escribir en `storage/logs`
+
+Error típico:
+
+```text
+storage/logs/laravel.log:
+Failed to open stream: Permission denied
+```
+
+Solución:
+
+```bash
+docker compose exec app chown -R www-data:www-data storage bootstrap/cache
+docker compose exec app chmod -R 775 storage bootstrap/cache
+```
+
+---
+
+## Passport no puede leer la clave privada
+
+Error típico:
+
+```text
+Key path "file:///var/www/html/storage/oauth-private.key"
+does not exist or is not readable
+```
+
+Verificar que exista:
+
+```bash
+docker compose exec app ls -la storage/oauth-*
+```
+
+Si no existe:
+
+```bash
+docker compose exec --user www-data app php artisan passport:keys
+```
+
+Luego:
+
+```bash
+docker compose exec app chmod 600 storage/oauth-private.key
+docker compose exec app chmod 644 storage/oauth-public.key
+```
+
+---
+
+## El cliente OAuth no está configurado
+
+Error:
+
+```text
+El cliente OAuth de Passport no está configurado.
+```
+
+Crear el cliente:
+
+```bash
+docker compose exec app php artisan passport:client --password
+```
+
+Copiar los valores generados a:
+
+```env
+PASSPORT_PASSWORD_CLIENT_ID=
+PASSPORT_PASSWORD_CLIENT_SECRET=
+```
+
+Luego:
+
+```bash
+docker compose exec app php artisan optimize:clear
+```
+
+---
+
+## Verificar conexión a MariaDB
+
+Entrar al container:
+
+```bash
+docker compose exec app php artisan tinker
+```
+
+Dentro:
+
+```php
+DB::connection()->getPdo();
+```
+
+Si no devuelve una excepción, Laravel pudo conectarse correctamente.
+
+También:
+
+```php
+DB::select('SELECT VERSION() AS version');
+```
+
+permite consultar la versión de MariaDB utilizada.
+
+---
+
+# Producción
+
+El entorno Docker local utiliza:
+
+```text
+Nginx
++
+PHP 8.5-FPM
++
+Laravel 13
++
+MariaDB 11.8
+```
+
+El hosting de producción utiliza:
+
+```text
+LiteSpeed
++
+PHP 8.5
++
+Laravel 13
++
+MariaDB 11.8.x
+```
+
+Laravel no debe depender de configuraciones específicas de Nginx.
+
+El Document Root del dominio/subdominio en producción debe apuntar al directorio:
+
+```text
+/public
+```
+
+y nunca al directorio raíz completo del proyecto.
+
+---
+
+# Seguridad
+
+No versionar:
+
+```text
+.env
+storage/oauth-private.key
+storage/oauth-public.key
+```
+
+No utilizar permisos globales:
+
+```bash
+chmod -R 777 .
+```
+
+La clave privada de Passport debe mantenerse protegida:
+
+```text
+oauth-private.key → 600
+oauth-public.key  → 644
+```
+
+Las credenciales:
+
+```env
+PASSPORT_PASSWORD_CLIENT_SECRET=
+DB_PASSWORD=
+```
+
+no deben subirse al repositorio.
+
+---
+
+# Resumen de primera instalación
+
+```bash
+cp .env.example .env
+
+docker compose build
+docker compose up -d
+
+docker compose exec app composer install
+
+docker compose exec app php artisan key:generate
+
+docker compose exec app chown -R www-data:www-data storage bootstrap/cache
+docker compose exec app chmod -R 775 storage bootstrap/cache
+
+docker compose exec app php artisan migrate --seed
+
+docker compose exec --user www-data app php artisan passport:keys
+
+docker compose exec app chown www-data:www-data storage/oauth-private.key storage/oauth-public.key
+docker compose exec app chmod 600 storage/oauth-private.key
+docker compose exec app chmod 644 storage/oauth-public.key
+
+docker compose exec app php artisan passport:client --password
+```
+
+Agregar al `.env` las credenciales generadas:
+
+```env
+PASSPORT_PASSWORD_CLIENT_ID=
+PASSPORT_PASSWORD_CLIENT_SECRET=
+```
+
+Finalmente:
+
+```bash
+docker compose exec app php artisan optimize:clear
+docker compose exec app php artisan route:list
+```
+
+Con esto el entorno debería quedar preparado para utilizar la API de autenticación con Laravel Passport.
