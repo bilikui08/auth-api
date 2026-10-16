@@ -14,7 +14,7 @@ final class AuthController extends Controller
 {
     public function __construct(private readonly AuthService $service) {}
 
-    public function auth(AuthRequest $request): JsonResponse
+    public function login(AuthRequest $request): JsonResponse
     {
         return response()->json([
             'message' => 'Autenticación exitosa.',

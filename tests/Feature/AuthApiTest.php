@@ -24,7 +24,7 @@ class AuthApiTest extends TestCase
             ->with('john@example.com', 'password')
             ->andReturn($this->tokenData());
 
-        $this->postJson('/api/auth', [
+        $this->postJson('/api/auth/login', [
             'email' => 'john@example.com',
             'password' => 'password',
         ])->assertOk()
@@ -42,7 +42,7 @@ class AuthApiTest extends TestCase
             ->with('john', 'password')
             ->andReturn($this->tokenData());
 
-        $this->postJson('/api/auth', [
+        $this->postJson('/api/auth/login', [
             'name' => 'john',
             'password' => 'password',
         ])->assertOk()->assertJsonPath('data.user.id', $user->id);
@@ -55,7 +55,7 @@ class AuthApiTest extends TestCase
             ->with('jane@example.com', 'password123')
             ->andReturn($this->tokenData());
 
-        $this->postJson('/api/register', [
+        $this->postJson('/api/auth/register', [
             'name' => 'Jane',
             'email' => 'jane@example.com',
             'password' => 'password123',
@@ -74,7 +74,7 @@ class AuthApiTest extends TestCase
         $repository->shouldReceive('sendPasswordResetLink')->once()->with('john@example.com');
         $this->app->instance(AuthRepository::class, $repository);
 
-        $this->postJson('/api/forgot-password', [
+        $this->postJson('/api/auth/forgot-password', [
             'email' => 'john@example.com',
         ])->assertOk()
             ->assertJsonPath('success', true)
@@ -89,7 +89,7 @@ class AuthApiTest extends TestCase
             ->with('old-refresh-token')
             ->andReturn($this->tokenData());
 
-        $this->postJson('/api/refresh', [
+        $this->postJson('/api/auth/refresh', [
             'refresh_token' => 'old-refresh-token',
         ])->assertOk()
             ->assertJsonPath('success', true)
@@ -98,7 +98,7 @@ class AuthApiTest extends TestCase
 
     public function test_validation_errors_use_the_uniform_response(): void
     {
-        $this->postJson('/api/auth', [])
+        $this->postJson('/api/auth/login', [])
             ->assertUnprocessable()
             ->assertJsonPath('success', false)
             ->assertJsonPath('data', null)
@@ -119,7 +119,7 @@ class AuthApiTest extends TestCase
             ->once()
             ->with('current-token-id');
 
-        $this->postJson('/api/logout')
+        $this->postJson('/api/auth/logout')
             ->assertOk()
             ->assertJsonPath('success', true)
             ->assertJsonPath('message', 'Sesión cerrada correctamente.')
@@ -129,7 +129,7 @@ class AuthApiTest extends TestCase
 
     public function test_logout_requires_a_valid_bearer_token(): void
     {
-        $this->postJson('/api/logout')
+        $this->postJson('/api/auth/logout')
             ->assertUnauthorized()
             ->assertJsonPath('success', false)
             ->assertJsonPath('message', 'No autenticado.')

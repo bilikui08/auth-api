@@ -18,12 +18,12 @@
     },
     {
       "key": "user_email",
-      "value": "usuario@example.com",
+      "value": "gustavo639@gmail.com",
       "type": "string"
     },
     {
       "key": "user_password",
-      "value": "password123",
+      "value": "Nueva123",
       "type": "string"
     },
     {
@@ -62,12 +62,13 @@
           }
         },
         "url": {
-          "raw": "{{base_url}}/auth",
+          "raw": "{{base_url}}/auth/login",
           "host": [
             "{{base_url}}"
           ],
           "path": [
-            "auth"
+            "auth",
+            "login"
           ]
         },
         "description": "Autentica mediante email y contraseña. También admite `name` en lugar de `email`, pero no ambos."
@@ -113,11 +114,12 @@
           }
         },
         "url": {
-          "raw": "{{base_url}}/register",
+          "raw": "{{base_url}}/auth/register",
           "host": [
             "{{base_url}}"
           ],
           "path": [
+            "auth",
             "register"
           ]
         },
@@ -164,11 +166,12 @@
           }
         },
         "url": {
-          "raw": "{{base_url}}/forgot-password",
+          "raw": "{{base_url}}/auth/forgot-password",
           "host": [
             "{{base_url}}"
           ],
           "path": [
+            "auth",
             "forgot-password"
           ]
         },
@@ -200,11 +203,12 @@
           }
         },
         "url": {
-          "raw": "{{base_url}}/refresh",
+          "raw": "{{base_url}}/auth/refresh",
           "host": [
             "{{base_url}}"
           ],
           "path": [
+            "auth",
             "refresh"
           ]
         },
@@ -248,11 +252,12 @@
           }
         ],
         "url": {
-          "raw": "{{base_url}}/logout",
+          "raw": "{{base_url}}/auth/logout",
           "host": [
             "{{base_url}}"
           ],
           "path": [
+            "auth",
             "logout"
           ]
         },
