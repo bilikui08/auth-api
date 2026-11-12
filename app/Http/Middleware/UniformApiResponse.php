@@ -43,13 +43,10 @@ final class UniformApiResponse
         $payload = $response instanceof JsonResponse ? $response->getData(true) : null;
 
         if ($status >= 400) {
-            $message = match ($status) {
-                401 => 'No autenticado.',
-                403 => 'No tiene permisos para realizar esta acción.',
-                default => is_array($payload) && isset($payload['message'])
-                    ? (string) $payload['message']
-                    : 'La solicitud no pudo ser procesada.',
-            };
+            $message = $this->messageFor(
+                $status,
+                is_array($payload) && isset($payload['message']) ? (string) $payload['message'] : '',
+            );
             $errors = is_array($payload) ? ($payload['errors'] ?? null) : null;
 
             return $this->error($message, $errors, $status);
@@ -68,6 +65,16 @@ final class UniformApiResponse
             'data' => $data,
             'errors' => null,
         ], $status, $response->headers->all());
+    }
+
+    private function messageFor(int $status, string $fallback): string
+    {
+        return match ($status) {
+            401 => 'No autenticado.',
+            403 => 'No tiene permisos para realizar esta acción.',
+            404 => 'El recurso solicitado no existe.',
+            default => $fallback !== '' ? $fallback : 'La solicitud no pudo ser procesada.',
+        };
     }
 
     private function error(string $message, mixed $errors, int $status): JsonResponse

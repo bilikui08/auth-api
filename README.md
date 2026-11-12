@@ -182,6 +182,51 @@ chmod -R 777 .
 
 # Laravel Passport
 
+## Roles y permisos (N:N)
+
+Un usuario puede tener **varios roles** y un rol puede estar asignado a **varios usuarios**
+(tablas `roles` y `role_user`). Los roles `admin` y `user` son del sistema: se crean con la
+migración, no se pueden renombrar ni borrar. Todo usuario nuevo nace con el rol `user`; el
+registro **nunca** permite asignar otros.
+
+`GET /api/auth/me` devuelve los roles como lista de nombres (`"roles": ["admin", "user"]`).
+El API Gateway usa ese dato para sus reglas de acceso por rol.
+
+### Endpoints (requieren Bearer y rol `admin`)
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/auth/roles` | Lista los roles (con `users_count`) |
+| POST | `/api/auth/roles` | Crea un rol: `{"name": "editor", "description": "..."}` |
+| GET | `/api/auth/roles/{id}` | Detalle |
+| PUT | `/api/auth/roles/{id}` | Actualiza nombre y/o descripción |
+| DELETE | `/api/auth/roles/{id}` | Elimina (se desasigna de sus usuarios) |
+| GET | `/api/auth/users/{id}/roles` | Roles de un usuario |
+| PUT | `/api/auth/users/{id}/roles` | Reemplaza **todos** sus roles: `{"roles": ["user", "editor"]}` |
+| POST | `/api/auth/users/{id}/roles/{roleId}` | Asigna un rol (idempotente) |
+| DELETE | `/api/auth/users/{id}/roles/{roleId}` | Retira un rol |
+
+Reglas: `name` en minúsculas, números, `-` y `_` (máx. 50) y único; los roles del sistema no
+se renombran ni se eliminan; no se puede dejar al sistema sin ningún `admin`.
+
+### Crear el primer administrador
+
+Los endpoints exigen un admin, así que el primero se crea por consola:
+
+```bash
+docker compose exec app php artisan auth:role tu@mail.com admin            # asignar
+docker compose exec app php artisan auth:role tu@mail.com admin --revoke   # retirar
+```
+
+(`php artisan db:seed` deja al usuario de desarrollo como admin.)
+
+### Tokens de vida corta
+
+Los microservicios validan el JWT solo con la clave pública, sin consultar esta BD. Por eso
+el access token dura **15 minutos** (`PASSPORT_ACCESS_TOKEN_TTL_MINUTES`) y el refresh token
+30 días (`PASSPORT_REFRESH_TOKEN_TTL_DAYS`). Un `logout` o un cambio de rol se nota en los
+servicios cuando el token caduca o se renueva.
+
 ## Verificar si Passport está instalado
 
 ```bash

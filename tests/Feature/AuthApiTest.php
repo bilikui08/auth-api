@@ -5,6 +5,7 @@ namespace Tests\Feature;
 use App\Domain\Auth\Contracts\AuthRepository;
 use App\Domain\Auth\Contracts\TokenRepository;
 use App\Domain\Auth\DTO\TokenData;
+use App\Models\Role;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Passport\AccessToken;
@@ -146,18 +147,20 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('success', true)
             ->assertJsonPath('data.id', $user->id)
             ->assertJsonPath('data.email', $user->email)
-            ->assertJsonPath('data.role', 'user')
+            ->assertJsonPath('data.roles', [])
             ->assertJsonMissingPath('data.password');
     }
 
-    public function test_me_exposes_the_users_role(): void
+    public function test_me_exposes_the_users_roles_as_a_list_of_names(): void
     {
-        Passport::actingAs(User::factory()->create(['role' => 'admin']));
+        $user = User::factory()->create();
+        $user->roles()->attach(Role::whereIn('name', ['admin', 'user'])->pluck('id'));
+        Passport::actingAs($user);
 
-        $this->getJson('/api/auth/me')->assertOk()->assertJsonPath('data.role', 'admin');
+        $this->getJson('/api/auth/me')->assertOk()->assertJsonPath('data.roles', ['admin', 'user']);
     }
 
-    public function test_register_cannot_assign_a_role(): void
+    public function test_register_assigns_the_default_user_role_and_ignores_a_requested_role(): void
     {
         $this->mockTokens()->shouldReceive('issue')->once()->andReturn($this->tokenData());
 
@@ -166,10 +169,11 @@ class AuthApiTest extends TestCase
             'email' => 'mallory@example.com',
             'password' => 'password123',
             'password_confirmation' => 'password123',
+            'roles' => ['admin'],
             'role' => 'admin',
         ])->assertCreated();
 
-        $this->assertSame('user', User::where('email', 'mallory@example.com')->value('role'));
+        $this->assertSame(['user'], User::where('email', 'mallory@example.com')->first()->roleNames());
     }
 
     public function test_me_requires_a_valid_bearer_token(): void

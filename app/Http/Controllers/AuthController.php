@@ -63,7 +63,8 @@ final class AuthController extends Controller
     {
         return response()->json([
             'message' => 'Usuario autenticado.',
-            'data' => $request->user(),
+            // Los roles van como lista de nombres: es lo que consume el API Gateway.
+            'data' => [...$request->user()->toArray(), 'roles' => $request->user()->roleNames()],
         ]);
     }
 }
