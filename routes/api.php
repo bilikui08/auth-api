@@ -12,6 +12,7 @@ Route::prefix('auth')
         Route::post('refresh', [AuthController::class, 'refresh'])->name('refresh');
 
         Route::middleware('auth:api')->group(function (): void {
+            Route::get('me', [AuthController::class, 'me'])->name('me');
             Route::post('logout', [AuthController::class, 'logout'])->name('logout');
         });
     });

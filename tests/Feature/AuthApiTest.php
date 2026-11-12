@@ -136,6 +136,49 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('data', null);
     }
 
+    public function test_authenticated_user_can_fetch_own_profile(): void
+    {
+        $user = User::factory()->create();
+        Passport::actingAs($user);
+
+        $this->getJson('/api/auth/me')
+            ->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.id', $user->id)
+            ->assertJsonPath('data.email', $user->email)
+            ->assertJsonPath('data.role', 'user')
+            ->assertJsonMissingPath('data.password');
+    }
+
+    public function test_me_exposes_the_users_role(): void
+    {
+        Passport::actingAs(User::factory()->create(['role' => 'admin']));
+
+        $this->getJson('/api/auth/me')->assertOk()->assertJsonPath('data.role', 'admin');
+    }
+
+    public function test_register_cannot_assign_a_role(): void
+    {
+        $this->mockTokens()->shouldReceive('issue')->once()->andReturn($this->tokenData());
+
+        $this->postJson('/api/auth/register', [
+            'name' => 'Mallory',
+            'email' => 'mallory@example.com',
+            'password' => 'password123',
+            'password_confirmation' => 'password123',
+            'role' => 'admin',
+        ])->assertCreated();
+
+        $this->assertSame('user', User::where('email', 'mallory@example.com')->value('role'));
+    }
+
+    public function test_me_requires_a_valid_bearer_token(): void
+    {
+        $this->getJson('/api/auth/me')
+            ->assertUnauthorized()
+            ->assertJsonPath('success', false);
+    }
+
     private function mockTokens(): Mockery\MockInterface
     {
         $repository = Mockery::mock(TokenRepository::class);

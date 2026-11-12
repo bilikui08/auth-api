@@ -9,6 +9,7 @@ use App\Http\Requests\Auth\LogoutRequest;
 use App\Http\Requests\Auth\RefreshTokenRequest;
 use App\Http\Requests\Auth\RegisterRequest;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 final class AuthController extends Controller
 {
@@ -55,6 +56,14 @@ final class AuthController extends Controller
         return response()->json([
             'message' => 'Sesión cerrada correctamente.',
             'data' => null,
+        ]);
+    }
+
+    public function me(Request $request): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Usuario autenticado.',
+            'data' => $request->user(),
         ]);
     }
 }
