@@ -29,6 +29,11 @@ class AppServiceProvider extends ServiceProvider
     {
         Passport::enablePasswordGrant();
 
+        // Access tokens cortos: los microservicios los validan solo con la clave
+        // publica (sin consultar la BD), asi que la revocacion depende de que caduquen pronto.
+        Passport::tokensExpireIn(new \DateInterval(sprintf('PT%dM', (int) config('auth.access_token_ttl_minutes'))));
+        Passport::refreshTokensExpireIn(new \DateInterval(sprintf('P%dD', (int) config('auth.refresh_token_ttl_days'))));
+
         ResetPassword::createUrlUsing(
             fn (User $user, string $token): string => sprintf(
                 '%s/reset-password?token=%s&email=%s',

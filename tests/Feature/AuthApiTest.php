@@ -179,6 +179,16 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('success', false);
     }
 
+    public function test_access_tokens_are_short_lived(): void
+    {
+        $access = Passport::tokensExpireIn();
+        $refresh = Passport::refreshTokensExpireIn();
+
+        $this->assertSame(15, $access->i);
+        $this->assertSame(0, $access->d + $access->m + $access->y);
+        $this->assertSame(30, $refresh->d);
+    }
+
     private function mockTokens(): Mockery\MockInterface
     {
         $repository = Mockery::mock(TokenRepository::class);
