@@ -39,6 +39,8 @@ return new class extends Migration
     private function timeColumns(): array
     {
         $columns = [];
+        $database = DB::getDatabaseName();
+        $isMysql = in_array(DB::getDriverName(), ['mysql', 'mariadb'], true);
 
         foreach (Schema::getTables() as $table) {
             $name = $table['name'];
@@ -47,14 +49,22 @@ return new class extends Migration
                 continue;
             }
 
+            // En MySQL/MariaDB getTables() lista las tablas de TODAS las bases a las que el usuario tiene
+            // acceso: sin este filtro, una tabla con el mismo nombre en otra base se procesaría dos veces
+            // y las fechas se correrían 6 horas en lugar de 3.
+            if ($isMysql && isset($table['schema']) && $table['schema'] !== $database) {
+                continue;
+            }
+
             foreach (Schema::getColumns($name) as $column) {
                 if (in_array(strtolower($column['type_name']), ['timestamp', 'datetime'], true)) {
-                    $columns[] = [$name, $column['name']];
+                    // Clave única por tabla.columna: nunca se desplaza dos veces la misma columna
+                    $columns["{$name}.{$column['name']}"] = [$name, $column['name']];
                 }
             }
         }
 
-        return $columns;
+        return array_values($columns);
     }
 
     private function shiftColumn(string $table, string $column, int $hours): void
