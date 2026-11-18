@@ -2,6 +2,8 @@
 
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\UniformApiResponse;
+use App\Domain\Auth\Exceptions\InvalidCredentials;
+use App\Domain\Auth\Exceptions\OAuthClientNotConfigured;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
 use Illuminate\Foundation\Configuration\Middleware;
@@ -27,4 +29,22 @@ return Application::configure(basePath: dirname(__DIR__))
         $exceptions->shouldRenderJsonWhen(
             fn (Request $request) => $request->is('api/*') || $request->expectsJson(),
         );
+
+        // Credenciales o refresh token inválidos: es un error del cliente (401), no una falla del servidor.
+        // Las excepciones de controlador las convierte Laravel en respuesta antes de llegar al middleware
+        // UniformApiResponse, por eso se resuelven acá.
+        $exceptions->dontReport(InvalidCredentials::class);
+        $exceptions->render(fn (InvalidCredentials $e, Request $request) => response()->json([
+            'success' => false,
+            'message' => $e->getMessage(),
+            'data' => null,
+            'errors' => null,
+        ], 401));
+
+        $exceptions->render(fn (OAuthClientNotConfigured $e, Request $request) => response()->json([
+            'success' => false,
+            'message' => 'El servicio de autenticación no está disponible.',
+            'data' => null,
+            'errors' => null,
+        ], 503));
     })->create();

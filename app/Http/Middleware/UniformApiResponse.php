@@ -70,7 +70,8 @@ final class UniformApiResponse
     private function messageFor(int $status, string $fallback): string
     {
         return match ($status) {
-            401 => 'No autenticado.',
+            // Conserva el mensaje propio (ej. credenciales inválidas); solo traduce el genérico de Laravel.
+            401 => $fallback !== '' && $fallback !== 'Unauthenticated.' ? $fallback : 'No autenticado.',
             403 => 'No tiene permisos para realizar esta acción.',
             404 => 'El recurso solicitado no existe.',
             default => $fallback !== '' ? $fallback : 'La solicitud no pudo ser procesada.',

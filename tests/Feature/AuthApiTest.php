@@ -97,6 +97,18 @@ class AuthApiTest extends TestCase
             ->assertJsonPath('data.tokens.access_token', 'access-token');
     }
 
+    public function test_refresh_with_an_invalid_token_answers_401_not_500(): void
+    {
+        $this->mockTokens()->shouldReceive('refresh')
+            ->once()
+            ->andThrow(new \App\Domain\Auth\Exceptions\InvalidCredentials('El refresh token es inválido, expiró o ya fue utilizado.'));
+
+        $this->postJson('/api/auth/refresh', ['refresh_token' => 'invalido'])
+            ->assertUnauthorized()
+            ->assertJsonPath('success', false)
+            ->assertJsonPath('message', 'El refresh token es inválido, expiró o ya fue utilizado.');
+    }
+
     public function test_validation_errors_use_the_uniform_response(): void
     {
         $this->postJson('/api/auth/login', [])
