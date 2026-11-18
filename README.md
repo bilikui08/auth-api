@@ -227,6 +227,23 @@ el access token dura **15 minutos** (`PASSPORT_ACCESS_TOKEN_TTL_MINUTES`) y el r
 30 días (`PASSPORT_REFRESH_TOKEN_TTL_DAYS`). Un `logout` o un cambio de rol se nota en los
 servicios cuando el token caduca o se renueva.
 
+## Claims del access token
+
+Los access tokens son JWT firmados (RS256) y los servicios (billing, etc.) los validan solo con la clave pública.
+Además de los claims estándar (`aud`, `jti`, `iat`, `nbf`, `exp`, `sub`, `scopes`), llevan:
+
+| Claim  | Valor                                  | Para qué                                                        |
+|--------|----------------------------------------|-----------------------------------------------------------------|
+| `name` | nombre del usuario al emitir el token  | que los servicios auditen "quién hizo qué" sin consultar a auth-api |
+
+- Los arma `App\Auth\Passport\ClaimsAccessToken`, registrada con `Passport::useAccessTokenEntity()` en `AppServiceProvider`.
+  Es una copia de `Laravel\Passport\Bridge\AccessToken` porque league/oauth2-server construye el JWT en un método privado.
+  **Revisarla al actualizar Passport o league/oauth2-server** (el test `AccessTokenClaimsTest` decodifica un token real).
+- Se calculan al emitir el token (login y refresh): un cambio de nombre tarda hasta el siguiente refresh en reflejarse.
+- **El JWT no está cifrado**: cualquiera que lo tenga puede leer los claims. No agregar datos sensibles (email, documentos).
+- Los tokens emitidos antes de este cambio no traen `name`: los servicios deben tolerar su ausencia.
+- Más adelante se pueden agregar acá los permisos del usuario (mismo mecanismo).
+
 ## Verificar si Passport está instalado
 
 ```bash

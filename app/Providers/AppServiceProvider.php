@@ -9,6 +9,7 @@ use App\Infrastructure\Auth\PassportTokenRepository;
 use App\Models\User;
 use Illuminate\Auth\Notifications\ResetPassword;
 use Illuminate\Support\ServiceProvider;
+use App\Auth\Passport\ClaimsAccessToken;
 use Laravel\Passport\Passport;
 
 class AppServiceProvider extends ServiceProvider
@@ -28,6 +29,9 @@ class AppServiceProvider extends ServiceProvider
     public function boot(): void
     {
         Passport::enablePasswordGrant();
+
+        // Los access tokens llevan el nombre del usuario (ver ClaimsAccessToken): los servicios lo usan para auditar
+        Passport::useAccessTokenEntity(ClaimsAccessToken::class);
 
         // Access tokens cortos: los microservicios los validan solo con la clave
         // publica (sin consultar la BD), asi que la revocacion depende de que caduquen pronto.
