@@ -285,10 +285,12 @@ un cambio de rol vale al instante):
 | PUT | `/api/auth/organization/members/{userId}` | Reemplaza sus roles: `{"roles": ["viewer"]}` (mínimo uno) |
 | DELETE | `/api/auth/organization/members/{userId}` | Lo quita (sus sesiones en esa empresa dejan de renovarse) |
 | GET | `/api/auth/organization/roles` | Roles asignables con sus permisos |
+| POST | `/api/auth/organization/invitations` | Suma a alguien por email: `{"email", "roles"}` → `status: "added"` (ya tenía cuenta: entra al instante y se le avisa) o `"invited"` (se le manda el enlace); `email_sent` dice si el correo salió |
+| GET | `/api/auth/organization/invitations` | Invitaciones pendientes |
+| DELETE | `/api/auth/organization/invitations/{id}` | Cancela una invitación pendiente |
 
 Reglas: solo se asignan roles de empresa (los que tienen permisos; nunca los globales `admin` / `user`); la empresa siempre conserva
-al menos un `company_admin`; no se puede tocar a personas de otra empresa. Todavía no hay invitación por email: la persona debe tener
-cuenta (hoy, `POST /auth/register`).
+al menos un `company_admin`; no se puede tocar a personas de otra empresa.
 
 **Administrador del sistema** (rol global `admin`): `GET|POST /api/auth/admin/organizations` (alta con su primer administrador:
 `{"name", "tax_id"?, "admin_email"}`), `PUT /api/auth/admin/organizations/{id}` (`name`, `tax_id`, `is_active`: una empresa inactiva no deja
@@ -1093,3 +1095,24 @@ docker compose exec app php artisan route:list
 ```
 
 Con esto el entorno debería quedar preparado para utilizar la API de autenticación con Laravel Passport.
+
+## Invitaciones por email (no hay registro abierto)
+
+`POST /api/auth/register` **no existe**: la única forma de tener una cuenta nueva es aceptar una invitación.
+
+1. Quien administra una empresa (o la administración del sistema, al crear una empresa) invita por email con `POST /api/auth/organization/invitations`.
+   Si el email ya tiene cuenta se lo suma al instante; si no, se crea una invitación y se manda un correo con el enlace
+   `FRONTEND_URL/accept-invitation?token=...`.
+2. La pantalla pública consulta `GET /api/auth/invitations/{token}` (a quién, a qué empresa, con qué roles) y acepta con
+   `POST /api/auth/invitations/{token}/accept` `{name, password, password_confirmation}`: se crea la cuenta (email verificado), se la suma
+   a la empresa con los roles invitados y se abre la sesión. Si en el medio el email ya tuvo cuenta, solo se lo suma (`status: "existing_user"`).
+
+Seguridad: el token (64 caracteres al azar) **solo viaja por email**, nunca vuelve por la API (quien invita no lo ve: si no, podría aceptar
+en nombre de otra persona); se guarda **hasheado** (SHA-256); vale **7 días**, **un solo uso**; reinvitar al mismo email invalida el enlace
+anterior; un token desconocido, vencido, cancelado o usado responde lo mismo (404 con un único mensaje); los endpoints públicos tienen
+límite de frecuencia (30/min consulta, 10/min aceptación). El correo sale en el momento (el hosting no tiene procesos en segundo plano): si
+falla, la invitación queda guardada y se puede reenviar.
+
+**Configuración necesaria en producción** (`.env`): `MAIL_MAILER=smtp` con `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
+`MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`; `FRONTEND_URL` con la dirección donde se publique el frontend; y `APP_NAME=Facturín` (es el nombre
+que aparece en el encabezado y el pie de los correos). Con `MAIL_MAILER=log` el correo se escribe en `storage/logs` en lugar de enviarse.

@@ -293,7 +293,7 @@ class OrganizationAdminTest extends TestCase
         $root = fn () => $this->as($this->root);
 
         $root()->postJson('/api/auth/admin/organizations', [])->assertUnprocessable();
-        $root()->postJson('/api/auth/admin/organizations', ['name' => 'X', 'admin_email' => 'nadie@example.com'])->assertUnprocessable();
+        $root()->postJson('/api/auth/admin/organizations', ['name' => 'X', 'admin_email' => 'no-es-un-email'])->assertUnprocessable();
         $this->a->update(['tax_id' => '30711111119']);
         $root()->postJson('/api/auth/admin/organizations', ['name' => 'X', 'tax_id' => '30711111119', 'admin_email' => 'ana@example.com'])
             ->assertUnprocessable()->assertJsonValidationErrors('tax_id');

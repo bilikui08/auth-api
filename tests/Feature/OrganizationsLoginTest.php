@@ -390,18 +390,14 @@ class OrganizationsLoginTest extends TestCase
 
     // ------------------------------------------------------------------ alta y puertas cerradas
 
-    public function test_registering_creates_the_users_own_company_as_administrator(): void
+    public function test_open_registration_is_closed(): void
     {
-        $response = $this->postJson('/api/auth/register', [
+        $this->postJson('/api/auth/register', [
             'name' => 'Nueva Persona', 'email' => 'nueva@example.com', 'password' => 'password123', 'password_confirmation' => 'password123',
-        ])->assertCreated();
+        ])->assertNotFound();
 
-        $organization = Organization::where('name', 'Nueva Persona')->firstOrFail();
-        $claims = $this->claims($response->json('data.tokens.access_token'));
-
-        $this->assertSame($organization->id, $claims['org']);
-        $this->assertContains('sales.settings.manage', $claims['permissions']);
-        $this->assertSame($organization->id, $response->json('data.organization.id'));
+        $this->assertSame(0, User::where('email', 'nueva@example.com')->count());
+        $this->assertSame(0, Organization::where('name', 'Nueva Persona')->count());
     }
 
     public function test_the_password_grant_is_no_longer_available_on_the_public_oauth_endpoint(): void

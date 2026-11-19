@@ -10,12 +10,10 @@ use App\Domain\Auth\DTO\AuthData;
 use App\Domain\Auth\DTO\ForgotPasswordData;
 use App\Domain\Auth\DTO\LogoutData;
 use App\Domain\Auth\DTO\RefreshTokenData;
-use App\Domain\Auth\DTO\RegisterData;
 use App\Domain\Auth\Exceptions\InvalidCredentials;
 use App\Domain\Organizations\Exceptions\OrganizationAccessDenied;
 use App\Models\Organization;
 use App\Models\User;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 
 final readonly class AuthService
@@ -91,16 +89,13 @@ final readonly class AuthService
     }
 
     /**
+     * Abre la sesión de una persona en una empresa sin pedir la contraseña (ya se probó otra cosa: el enlace de una invitación).
+     *
      * @return array<string, mixed>
      */
-    public function register(RegisterData $data): array
+    public function startSession(User $user, Organization $organization): array
     {
-        return DB::transaction(function () use ($data): array {
-            $user = $this->users->create($data);
-            $organization = $this->access->createPersonalOrganization($user);
-
-            return $this->signIn($user, $organization, $this->selections->create($user->id));
-        });
+        return $this->signIn($user, $organization, $this->selections->create($user->id));
     }
 
     public function forgotPassword(ForgotPasswordData $data): void

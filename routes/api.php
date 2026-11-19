@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\AdminOrganizationController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserRoleController;
@@ -13,7 +14,10 @@ Route::prefix('auth')
         Route::post('login', [AuthController::class, 'login'])->name('login');
         Route::post('select-organization', [AuthController::class, 'selectOrganization'])->name('select-organization');
         Route::post('switch-organization', [AuthController::class, 'switchOrganization'])->name('switch-organization');
-        Route::post('register', [AuthController::class, 'register'])->name('register');
+        // Invitaciones: la única forma de tener una cuenta nueva (no hay registro abierto). El token del enlace es la
+        // credencial, así que se limita la frecuencia para que no se pueda adivinar.
+        Route::get('invitations/{token}', [InvitationController::class, 'show'])->middleware('throttle:30,1')->name('invitations.show');
+        Route::post('invitations/{token}/accept', [InvitationController::class, 'accept'])->middleware('throttle:10,1')->name('invitations.accept');
         Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password');
         Route::post('refresh', [AuthController::class, 'refresh'])->name('refresh');
 
@@ -28,6 +32,9 @@ Route::prefix('auth')
                 Route::get('roles', [OrganizationController::class, 'roles'])->name('roles');
                 Route::get('members', [OrganizationController::class, 'members'])->name('members');
                 Route::post('members', [OrganizationController::class, 'addMember'])->name('members.add');
+                Route::get('invitations', [OrganizationController::class, 'invitations'])->name('invitations');
+                Route::post('invitations', [OrganizationController::class, 'invite'])->name('invitations.store');
+                Route::delete('invitations/{invitation}', [OrganizationController::class, 'revokeInvitation'])->whereNumber('invitation')->name('invitations.revoke');
                 Route::put('members/{user}', [OrganizationController::class, 'setMemberRoles'])->name('members.roles');
                 Route::delete('members/{user}', [OrganizationController::class, 'removeMember'])->name('members.remove');
             });

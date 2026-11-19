@@ -3,8 +3,6 @@
 namespace App\Application\Organizations;
 
 use App\Models\Organization;
-use App\Models\Role;
-use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -47,19 +45,5 @@ final class OrganizationAccess
             ->orderBy('permissions.name')
             ->pluck('permissions.name')
             ->all();
-    }
-
-    /** Empresa propia de un usuario nuevo: queda como su administrador. */
-    public function createPersonalOrganization(User $user): Organization
-    {
-        $organization = Organization::query()->create(['name' => $user->name]);
-
-        $roleId = Role::query()->where('name', PermissionCatalog::COMPANY_ADMIN)->value('id');
-
-        if ($roleId !== null) {
-            $organization->users()->attach($user->id, ['role_id' => $roleId]);
-        }
-
-        return $organization;
     }
 }

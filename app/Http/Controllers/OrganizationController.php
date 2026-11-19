@@ -2,8 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Application\Organizations\InvitationService;
 use App\Application\Organizations\MemberService;
 use App\Http\Requests\Organization\AddMemberRequest;
+use App\Http\Requests\Organization\InviteRequest;
 use App\Http\Requests\Organization\SetMemberRolesRequest;
 use App\Models\Organization;
 use App\Models\Role;
@@ -14,7 +16,7 @@ use Illuminate\Http\Request;
 /** Administración de la empresa activa del token: sus personas y los roles de cada una (permiso `org.members.manage`). */
 final class OrganizationController extends Controller
 {
-    public function __construct(private readonly MemberService $members) {}
+    public function __construct(private readonly MemberService $members, private readonly InvitationService $invitations) {}
 
     public function show(Request $request): JsonResponse
     {
@@ -32,6 +34,35 @@ final class OrganizationController extends Controller
         $this->members->add($this->organization($request), $user, $request->validated('roles'));
 
         return $this->respondMembers($request, 'Persona agregada a la empresa.', 201);
+    }
+
+    /**
+     * Suma a una persona por su email: si ya tiene cuenta entra al instante (y se le avisa); si no, se le manda una invitación
+     * por email. `email_sent` dice si el correo salió (si no, se puede reinvitar).
+     */
+    public function invite(InviteRequest $request): JsonResponse
+    {
+        $result = $this->invitations->invite($this->organization($request), $request->user(), $request->validated('email'), $request->validated('roles'));
+
+        return response()->json([
+            'message' => $result['status'] === 'added' ? 'La persona ya tenía cuenta: se la sumó a la empresa.' : 'Invitación enviada.',
+            'data' => $result + [
+                'members' => $this->members->members($this->organization($request)),
+                'invitations' => $this->invitations->pending($this->organization($request)),
+            ],
+        ], 201);
+    }
+
+    public function invitations(Request $request): JsonResponse
+    {
+        return response()->json(['message' => 'Invitaciones pendientes.', 'data' => $this->invitations->pending($this->organization($request))]);
+    }
+
+    public function revokeInvitation(Request $request, int $invitation): JsonResponse
+    {
+        $this->invitations->revoke($this->organization($request), $invitation);
+
+        return response()->json(['message' => 'Invitación cancelada.', 'data' => $this->invitations->pending($this->organization($request))]);
     }
 
     public function setMemberRoles(SetMemberRolesRequest $request, User $user): JsonResponse

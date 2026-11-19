@@ -59,23 +59,6 @@ class AuthApiTest extends TestCase
         ])->assertOk()->assertJsonPath('data.user.id', $user->id);
     }
 
-    public function test_user_can_register_and_receives_tokens(): void
-    {
-        $this->mockTokens()->shouldReceive('issueForOrganization')->once()->andReturn($this->tokenData());
-
-        $this->postJson('/api/auth/register', [
-            'name' => 'Jane',
-            'email' => 'jane@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-        ])->assertCreated()
-            ->assertJsonPath('success', true)
-            ->assertJsonPath('data.user.email', 'jane@example.com')
-            ->assertJsonPath('data.tokens.refresh_token', 'refresh-token');
-
-        $this->assertDatabaseHas('users', ['email' => 'jane@example.com']);
-    }
-
     public function test_forgot_password_has_a_generic_uniform_response(): void
     {
         $repository = Mockery::mock(AuthRepository::class);
@@ -177,22 +160,6 @@ class AuthApiTest extends TestCase
         Passport::actingAs($user);
 
         $this->getJson('/api/auth/me')->assertOk()->assertJsonPath('data.roles', ['admin', 'user']);
-    }
-
-    public function test_register_assigns_the_default_user_role_and_ignores_a_requested_role(): void
-    {
-        $this->mockTokens()->shouldReceive('issueForOrganization')->once()->andReturn($this->tokenData());
-
-        $this->postJson('/api/auth/register', [
-            'name' => 'Mallory',
-            'email' => 'mallory@example.com',
-            'password' => 'password123',
-            'password_confirmation' => 'password123',
-            'roles' => ['admin'],
-            'role' => 'admin',
-        ])->assertCreated();
-
-        $this->assertSame(['user'], User::where('email', 'mallory@example.com')->first()->roleNames());
     }
 
     public function test_me_requires_a_valid_bearer_token(): void

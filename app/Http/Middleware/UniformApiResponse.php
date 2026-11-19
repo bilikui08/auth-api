@@ -79,7 +79,8 @@ final class UniformApiResponse
             403 => $fallback !== '' && ! in_array($fallback, ['This action is unauthorized.', 'Forbidden'], true)
                 ? $fallback
                 : 'No tiene permisos para realizar esta acción.',
-            404 => 'El recurso solicitado no existe.',
+            // Conserva solo el mensaje de una invitación inválida; el resto de los 404 usa el genérico
+            404 => $fallback === \App\Domain\Organizations\Exceptions\InvitationNotValid::MESSAGE ? $fallback : 'El recurso solicitado no existe.',
             default => $fallback !== '' ? $fallback : 'La solicitud no pudo ser procesada.',
         };
     }

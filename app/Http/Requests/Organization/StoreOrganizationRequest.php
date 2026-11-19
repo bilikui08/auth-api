@@ -17,7 +17,7 @@ final class StoreOrganizationRequest extends FormRequest
         return [
             'name' => ['required', 'string', 'max:150'],
             'tax_id' => ['nullable', 'string', 'max:20', 'unique:organizations,tax_id'],
-            'admin_email' => ['required', 'email', 'max:255', 'exists:users,email'],
+            'admin_email' => ['required', 'email', 'max:255'],
         ];
     }
 

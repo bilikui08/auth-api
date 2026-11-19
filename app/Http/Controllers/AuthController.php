@@ -7,7 +7,6 @@ use App\Http\Requests\Auth\AuthRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LogoutRequest;
 use App\Http\Requests\Auth\RefreshTokenRequest;
-use App\Http\Requests\Auth\RegisterRequest;
 use App\Http\Requests\Auth\SelectOrganizationRequest;
 use App\Http\Requests\Auth\SwitchOrganizationRequest;
 use App\Application\Organizations\OrganizationAccess;
@@ -67,14 +66,6 @@ final class AuthController extends Controller
                 'organizations' => $this->service->organizationsOf($request->user()->id),
             ],
         ]);
-    }
-
-    public function register(RegisterRequest $request): JsonResponse
-    {
-        return response()->json([
-            'message' => 'Usuario registrado correctamente.',
-            'data' => $this->service->register($request->toDto()),
-        ], 201);
     }
 
     public function forgotPassword(ForgotPasswordRequest $request): JsonResponse
