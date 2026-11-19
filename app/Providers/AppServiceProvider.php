@@ -66,6 +66,11 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // La librería OAuth avisa si las claves no tienen permisos 600/660, y Laravel convierte ese aviso en un error 500 en el login.
+        // En el hosting compartido los permisos vuelven solos a 644 (cada cuenta está aislada de las demás), así que no se puede
+        // depender de ellos: el aviso se desactiva. Las claves siguen sin versionarse (están en .gitignore).
+        Passport::$validateKeyPermissions = false;
+
         // Los access tokens llevan el nombre del usuario (ver ClaimsAccessToken): los servicios lo usan para auditar
         Passport::useAccessTokenEntity(ClaimsAccessToken::class);
 
