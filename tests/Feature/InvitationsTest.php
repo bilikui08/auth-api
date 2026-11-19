@@ -231,8 +231,9 @@ class InvitationsTest extends TestCase
         $this->assertContains('sales.invoice.issue', $claims['permissions']);
         $this->assertNotContains('org.members.manage', $claims['permissions'], 'solo lo que dice el rol invitado');
 
-        // y puede volver a entrar con su contraseña
-        $this->postJson('/api/auth/login', ['email' => 'nueva@example.com', 'password' => 'password123'])->assertOk()->assertJsonPath('data.organization.id', $this->a->id);
+        // al volver a entrar, con su contraseña, el 2FA (activo por defecto) le pide configurar la aplicación
+        $this->postJson('/api/auth/login', ['email' => 'nueva@example.com', 'password' => 'password123'])->assertOk()
+            ->assertJsonPath('data.requires_two_factor', true)->assertJsonPath('data.two_factor', 'setup')->assertJsonMissingPath('data.tokens');
     }
 
     public function test_an_invitation_works_only_once(): void

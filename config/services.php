@@ -7,6 +7,15 @@ return [
         'password_client_secret' => env('PASSPORT_PASSWORD_CLIENT_SECRET'),
     ],
 
+    // Google reCAPTCHA v2 ("No soy un robot") en el login y en "olvidé mi contraseña". Sin RECAPTCHA_SECRET queda apagado
+    // (desarrollo y tests); en producción hay que cargarlo. RECAPTCHA_HOSTNAMES (separados por coma) limita desde qué sitios se
+    // aceptan: la misma clave puede estar en otros sitios (por ejemplo un formulario de contacto) y su captcha no debe servir acá.
+    'recaptcha' => [
+        'secret' => env('RECAPTCHA_SECRET'),
+        'hostnames' => array_values(array_filter(array_map('trim', explode(',', (string) env('RECAPTCHA_HOSTNAMES', ''))))),
+        'verify_url' => 'https://www.google.com/recaptcha/api/siteverify',
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

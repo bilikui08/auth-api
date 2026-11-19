@@ -5,6 +5,7 @@ use App\Http\Controllers\AuthController;
 use App\Http\Controllers\EmailTemplateController;
 use App\Http\Controllers\InvitationController;
 use App\Http\Controllers\SystemController;
+use App\Http\Controllers\TwoFactorController;
 use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserRoleController;
@@ -14,25 +15,42 @@ Route::prefix('auth')
     ->name('auth.')
     ->group(function (): void {
         // Público: el login muestra el nombre del sistema antes de autenticar
-        Route::get('branding', [SystemController::class, 'branding'])->middleware('throttle:60,1')->name('branding');
-        Route::post('login', [AuthController::class, 'login'])->name('login');
+        Route::get('branding', [SystemController::class, 'branding'])->middleware('throttle:branding')->name('branding');
+        // Contraseña + captcha; con límite de frecuencia por IP contra adivinar contraseñas
+        Route::post('login', [AuthController::class, 'login'])->middleware(['throttle:login', 'captcha'])->name('login');
+        // Segundo factor del ingreso: trabajan con el permiso temporal que se obtiene al validar la contraseña (vence, un solo uso,
+        // se anula tras unos pocos códigos erróneos); además van limitadas por frecuencia.
+        Route::prefix('login/two-factor')->middleware('throttle:two-factor-login')->name('login.two-factor.')->group(function (): void {
+            Route::post('setup', [TwoFactorController::class, 'loginSetup'])->name('setup');
+            Route::post('confirm', [TwoFactorController::class, 'loginConfirm'])->name('confirm');
+            Route::post('verify', [TwoFactorController::class, 'loginVerify'])->name('verify');
+        });
         Route::post('select-organization', [AuthController::class, 'selectOrganization'])->name('select-organization');
         Route::post('switch-organization', [AuthController::class, 'switchOrganization'])->name('switch-organization');
         // Invitaciones: la única forma de tener una cuenta nueva (no hay registro abierto). El token del enlace es la
         // credencial, así que se limita la frecuencia para que no se pueda adivinar.
-        Route::get('invitations/{token}', [InvitationController::class, 'show'])->middleware('throttle:30,1')->name('invitations.show');
-        Route::post('invitations/{token}/accept', [InvitationController::class, 'accept'])->middleware('throttle:10,1')->name('invitations.accept');
+        Route::get('invitations/{token}', [InvitationController::class, 'show'])->middleware('throttle:invitation-show')->name('invitations.show');
+        Route::post('invitations/{token}/accept', [InvitationController::class, 'accept'])->middleware('throttle:invitation-accept')->name('invitations.accept');
         // Restablecer contraseña: el token del enlace (que llega por email, vale 60 minutos y se usa una vez) es la credencial,
         // así que todo va limitado por frecuencia.
-        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1')->name('forgot-password');
-        Route::post('reset-password/check', [AuthController::class, 'checkPasswordReset'])->middleware('throttle:20,1')->name('reset-password.check');
-        Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1')->name('reset-password');
+        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware(['throttle:forgot-password', 'captcha'])->name('forgot-password');
+        Route::post('reset-password/check', [AuthController::class, 'checkPasswordReset'])->middleware('throttle:reset-password-check')->name('reset-password.check');
+        Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:reset-password')->name('reset-password');
         Route::post('refresh', [AuthController::class, 'refresh'])->name('refresh');
 
         Route::middleware('auth:api')->group(function (): void {
             Route::get('organizations', [AuthController::class, 'organizations'])->name('organizations');
             Route::get('me', [AuthController::class, 'me'])->name('me');
             Route::post('logout', [AuthController::class, 'logout'])->name('logout');
+
+            // Verificación en dos pasos de la propia cuenta
+            Route::prefix('two-factor')->middleware('throttle:two-factor-account')->name('two-factor.')->group(function (): void {
+                Route::get('/', [TwoFactorController::class, 'status'])->name('status');
+                Route::post('enable', [TwoFactorController::class, 'enable'])->name('enable');
+                Route::post('enable/confirm', [TwoFactorController::class, 'confirmEnable'])->name('enable.confirm');
+                Route::post('disable', [TwoFactorController::class, 'disable'])->name('disable');
+                Route::post('recovery-codes', [TwoFactorController::class, 'recoveryCodes'])->name('recovery-codes');
+            });
 
             // Administración de la empresa activa: personas y roles (permiso org.members.manage en esa empresa).
             Route::middleware('org.permission:org.members.manage')->prefix('organization')->name('organization.')->group(function (): void {
@@ -63,7 +81,7 @@ Route::prefix('auth')
                 Route::put('admin/email-templates/{key}', [EmailTemplateController::class, 'update'])->name('admin.email-templates.update');
                 Route::delete('admin/email-templates/{key}', [EmailTemplateController::class, 'restore'])->name('admin.email-templates.restore');
                 Route::post('admin/email-templates/{key}/preview', [EmailTemplateController::class, 'preview'])->name('admin.email-templates.preview');
-                Route::post('admin/email-templates/{key}/test', [EmailTemplateController::class, 'test'])->middleware('throttle:5,1')->name('admin.email-templates.test');
+                Route::post('admin/email-templates/{key}/test', [EmailTemplateController::class, 'test'])->middleware('throttle:email-test')->name('admin.email-templates.test');
                 Route::get('admin/users', [AdminOrganizationController::class, 'users'])->name('admin.users');
 
                 Route::get('users/{user}/roles', [UserRoleController::class, 'index'])->name('users.roles.index');

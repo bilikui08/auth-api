@@ -15,6 +15,9 @@ use App\Auth\Passport\SelectionTokens;
 use App\Auth\Passport\TokenContext;
 use App\Auth\Passport\TokenOrganizations;
 use Laravel\Passport\Bridge\RefreshTokenRepository;
+use Illuminate\Cache\RateLimiting\Limit;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\RateLimiter;
 use Laravel\Passport\Passport;
 use League\OAuth2\Server\AuthorizationServer;
 use League\OAuth2\Server\RequestAccessTokenEvent;
@@ -27,6 +30,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
+        // Las rutas públicas de Passport (/oauth/token, /oauth/authorize...) no se usan: los tokens los emite la propia aplicación
+        // después del login (contraseña, captcha y segundo factor). Dejarlas abiertas sería una puerta lateral sin esos controles.
+        Passport::ignoreRoutes();
+
         $this->app->bind(AuthRepository::class, EloquentAuthRepository::class);
         $this->app->bind(TokenRepository::class, PassportTokenRepository::class);
         $this->app->singleton(TokenContext::class);
@@ -66,6 +73,15 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Límites por minuto de las rutas públicas y sensibles. Cada ruta tiene su propio contador: con `throttle:N,1` todas las
+        // rutas comparten uno por IP (o por persona), y por ejemplo cargar la pantalla de login gastaba los intentos de contraseña.
+        foreach ([
+            'branding' => 60, 'login' => 10, 'two-factor-login' => 15, 'invitation-show' => 30, 'invitation-accept' => 10,
+            'forgot-password' => 5, 'reset-password-check' => 20, 'reset-password' => 10, 'two-factor-account' => 20, 'email-test' => 5,
+        ] as $name => $perMinute) {
+            RateLimiter::for($name, fn (Request $request): Limit => Limit::perMinute($perMinute)->by($name . '|' . ($request->user()?->getAuthIdentifier() ?? $request->ip())));
+        }
+
         // La librería OAuth avisa si las claves no tienen permisos 600/660, y Laravel convierte ese aviso en un error 500 en el login.
         // En el hosting compartido los permisos vuelven solos a 644 (cada cuenta está aislada de las demás), así que no se puede
         // depender de ellos: el aviso se desactiva. Las claves siguen sin versionarse (están en .gitignore).

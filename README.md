@@ -1133,6 +1133,41 @@ es de **un solo uso** y pedir otro invalida el anterior; pedir de nuevo antes de
 token desconocido, vencido, usado o de otro email responde lo mismo (422 con un único mensaje). Límite de frecuencia: 5/min el pedido,
 20/min la verificación y 10/min el cambio. No inicia sesión sola: después de cambiarla se ingresa con la nueva.
 
+## Seguridad del ingreso: captcha y verificación en dos pasos
+
+**Orden del ingreso:** usuario y contraseña (con captcha) → segundo factor → (si tiene varias empresas) elegir empresa → tokens. Sin el segundo
+factor **nunca se emite un token**. Las rutas públicas de Passport (`/oauth/token`, etc.) están desactivadas: los tokens los emite solo la aplicación.
+
+### reCAPTCHA v2 (login y "olvidé mi contraseña")
+- El frontend manda la respuesta del widget en el campo `captcha`; el servidor la verifica contra Google (`RECAPTCHA_SECRET` en el `.env`;
+  vacío = apagado, para desarrollo y tests). **Falla cerrado**: si Google no responde, se rechaza.
+- `RECAPTCHA_HOSTNAMES` (coma) limita desde qué sitios vale: la misma clave puede estar en otros sitios y su captcha no debe servir acá
+  (producción: `facturin.gustavoluis.me`; para probar en local, sumar `localhost`).
+- Límites por minuto **independientes por ruta** (`RateLimiter::for` en `AppServiceProvider`): login 10, olvidé contraseña 5, verificación 2FA 15, etc.
+
+### Verificación en dos pasos (TOTP)
+Google Authenticator, Microsoft Authenticator, Authy, 1Password… (RFC 6238, implementación propia en `Totp`, verificada con los vectores del RFC).
+**Está activa por defecto para todas las personas** (`users.two_factor_enabled` nace en `true`): quien no la configuró la configura en su
+próximo ingreso (QR o clave manual) y recibe 10 códigos de recuperación de un solo uso. Se apaga desde la cuenta (pide contraseña y un código).
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| POST | `/api/auth/login` | Con 2FA devuelve `requires_two_factor`, `two_factor` (`verify`\|`setup`) y `challenge_token` (vale 10 min, un uso) |
+| POST | `/api/auth/login/two-factor/setup` | `{challenge_token}` → `{secret, uri}` (primer ingreso) |
+| POST | `/api/auth/login/two-factor/confirm` | `{challenge_token, code}` → activa, devuelve `recovery_codes` y sigue el ingreso |
+| POST | `/api/auth/login/two-factor/verify` | `{challenge_token, code}` (código de la app o de recuperación) → sigue el ingreso |
+| GET | `/api/auth/two-factor` | Estado: `enabled`, `confirmed`, `recovery_codes_remaining` |
+| POST | `/api/auth/two-factor/enable` · `enable/confirm` | Volver a activarlo (secreto nuevo + código) |
+| POST | `/api/auth/two-factor/disable` | `{password, code}` |
+| POST | `/api/auth/two-factor/recovery-codes` | `{code}` → códigos nuevos (anulan los anteriores) |
+
+Seguridad: el secreto y los códigos de recuperación se guardan **cifrados / hasheados** y nunca vuelven por la API (salvo al configurar);
+un código **no sirve dos veces** (se guarda el último intervalo usado); el permiso temporal se anula tras 5 códigos erróneos y se bloquea la
+verificación de esa persona tras 10 errores en 15 min; tolera 1 intervalo (30 s) de diferencia de reloj.
+
+**Recuperar una cuenta** (perdió el celular y los códigos): `php artisan auth:2fa-reset email@dominio` (la obliga a configurarlo de nuevo en su
+próximo ingreso) o con `--disable` (lo deja sin 2FA).
+
 ### Ajustes del sistema y plantillas de correo (administración del sistema)
 
 El **servidor de correo (SMTP) y todo secreto viven solo en el `.env`**: nunca se editan desde la aplicación (quien pudiera cambiar el SMTP

@@ -4,7 +4,9 @@ namespace App\Application\Auth;
 
 use App\Domain\Auth\Exceptions\PasswordResetNotValid;
 use App\Application\Organizations\OrganizationAccess;
+use App\Application\Security\TwoFactorService;
 use App\Auth\Passport\SelectionTokens;
+use App\Auth\Passport\TwoFactorChallenges;
 use App\Domain\Auth\Contracts\AuthRepository;
 use App\Domain\Auth\Contracts\TokenRepository;
 use App\Domain\Auth\DTO\AuthData;
@@ -16,6 +18,7 @@ use App\Domain\Organizations\Exceptions\OrganizationAccessDenied;
 use App\Models\Organization;
 use App\Models\User;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Validation\ValidationException;
 
 final readonly class AuthService
 {
@@ -24,11 +27,14 @@ final readonly class AuthService
         private TokenRepository $tokens,
         private OrganizationAccess $access,
         private SelectionTokens $selections,
+        private TwoFactorService $twoFactor,
+        private TwoFactorChallenges $challenges,
     ) {}
 
     /**
-     * Primer paso del login: valida usuario y contraseña. Con una sola empresa entra directo; con varias NO emite
-     * tokens: devuelve las empresas y un permiso temporal para elegir una (selectOrganization). Sin empresas, error.
+     * Primer paso del login: valida usuario y contraseña. Si la persona tiene la verificación en dos pasos activa (lo normal) NO
+     * emite nada todavía: devuelve un permiso temporal para el paso siguiente (verificar el código, o configurar la aplicación si
+     * es la primera vez). Sin 2FA sigue como antes: con una sola empresa entra directo; con varias devuelve las empresas.
      *
      * @return array<string, mixed>
      */
@@ -40,6 +46,95 @@ final readonly class AuthService
             throw new InvalidCredentials;
         }
 
+        $organizations = $this->access->organizationsOf($user->id);
+
+        if ($organizations->isEmpty()) {
+            throw OrganizationAccessDenied::noOrganizations();
+        }
+
+        if ($this->twoFactor->required($user)) {
+            return [
+                'requires_two_factor' => true,
+                'two_factor' => $this->twoFactor->isConfirmed($user) ? 'verify' : 'setup',
+                'challenge_token' => $this->challenges->create($user->id),
+                'challenge_expires_in' => TwoFactorChallenges::TTL_SECONDS,
+            ];
+        }
+
+        return $this->proceed($user);
+    }
+
+    /** Datos para configurar la aplicación de autenticación (primer ingreso): el secreto y la dirección del QR. @return array{secret: string, uri: string} */
+    public function twoFactorSetup(string $challengeToken): array
+    {
+        $user = $this->challengedUser($challengeToken);
+
+        if ($this->twoFactor->isConfirmed($user)) {
+            throw new InvalidCredentials('La verificación en dos pasos ya está configurada.');
+        }
+
+        return $this->twoFactor->beginSetup($user);
+    }
+
+    /**
+     * Confirma la configuración con el primer código y sigue el ingreso. Devuelve además los códigos de recuperación (única vez que se ven).
+     *
+     * @return array<string, mixed>
+     */
+    public function twoFactorConfirm(string $challengeToken, string $code): array
+    {
+        $user = $this->challengedUser($challengeToken);
+        $codes = $this->attempt($challengeToken, fn () => $this->twoFactor->confirmSetup($user, $code));
+        $this->challenges->consume($challengeToken);
+
+        return ['recovery_codes' => $codes] + $this->proceed($user);
+    }
+
+    /**
+     * Verifica el código (de la aplicación o de recuperación) y sigue el ingreso.
+     *
+     * @return array<string, mixed>
+     */
+    public function twoFactorVerify(string $challengeToken, string $code): array
+    {
+        $user = $this->challengedUser($challengeToken);
+        $this->attempt($challengeToken, fn () => $this->twoFactor->verify($user, $code));
+        $this->challenges->consume($challengeToken);
+
+        return $this->proceed($user);
+    }
+
+    /** El permiso temporal del 2FA: si venció o ya se usó, hay que volver a poner la contraseña. */
+    private function challengedUser(string $challengeToken): User
+    {
+        $userId = $this->challenges->userId($challengeToken)
+            ?? throw new InvalidCredentials('La verificación venció: volvé a iniciar sesión.');
+
+        return User::query()->findOrFail($userId);
+    }
+
+    /** Cuenta los códigos erróneos del permiso temporal: a los pocos errores se anula y hay que empezar de nuevo. */
+    private function attempt(string $challengeToken, \Closure $action): mixed
+    {
+        try {
+            return $action();
+        } catch (ValidationException $e) {
+            if ($this->challenges->fail($challengeToken) === 0) {
+                throw new InvalidCredentials('Demasiados códigos incorrectos: volvé a iniciar sesión.');
+            }
+
+            throw $e;
+        }
+    }
+
+    /**
+     * Lo que sigue una vez comprobado todo lo que hay que comprobar: con una sola empresa entra directo; con varias NO emite
+     * tokens: devuelve las empresas y un permiso temporal para elegir una (selectOrganization). Sin empresas, error.
+     *
+     * @return array<string, mixed>
+     */
+    private function proceed(User $user): array
+    {
         $organizations = $this->access->organizationsOf($user->id);
 
         if ($organizations->isEmpty()) {

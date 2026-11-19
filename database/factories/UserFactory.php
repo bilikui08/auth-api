@@ -30,7 +30,25 @@ class UserFactory extends Factory
             'email_verified_at' => now(),
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
+            // En la base el 2FA nace activo; los tests de cada módulo no lo necesitan (los de seguridad lo piden con withTwoFactor())
+            'two_factor_enabled' => false,
         ];
+    }
+
+    /** Con el 2FA configurado y confirmado (secreto fijo para poder calcular los códigos en los tests). */
+    public function withTwoFactor(string $secret = 'JBSWY3DPEHPK3PXP'): static
+    {
+        return $this->state(fn (array $attributes) => [
+            'two_factor_enabled' => true,
+            'two_factor_secret' => $secret,
+            'two_factor_confirmed_at' => now(),
+        ]);
+    }
+
+    /** Con el 2FA activo pero sin configurar (es lo que tiene toda persona al principio). */
+    public function withTwoFactorPending(): static
+    {
+        return $this->state(fn (array $attributes) => ['two_factor_enabled' => true]);
     }
 
     /**

@@ -2,6 +2,7 @@
 
 use App\Http\Middleware\EnsureOrganizationPermission;
 use App\Http\Middleware\EnsureUserHasRole;
+use App\Http\Middleware\RequireCaptcha;
 use App\Http\Middleware\UniformApiResponse;
 use App\Domain\Auth\Exceptions\InvalidCredentials;
 use App\Domain\Auth\Exceptions\OAuthClientNotConfigured;
@@ -26,6 +27,7 @@ return Application::configure(basePath: dirname(__DIR__))
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
             'org.permission' => EnsureOrganizationPermission::class,
+            'captcha' => RequireCaptcha::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

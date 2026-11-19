@@ -400,7 +400,7 @@ class OrganizationsLoginTest extends TestCase
         $this->assertSame(0, Organization::where('name', 'Nueva Persona')->count());
     }
 
-    public function test_the_password_grant_is_no_longer_available_on_the_public_oauth_endpoint(): void
+    public function test_the_password_grant_is_not_reachable_even_with_the_client_secret(): void
     {
         $this->join($this->user(), 'Ana SRL');
 
@@ -410,11 +410,11 @@ class OrganizationsLoginTest extends TestCase
             'client_secret' => config('services.passport.password_client_secret'),
             'username' => 'ana@example.com',
             'password' => 'password',
-        ])->assertStatus(400);
+        ])->assertStatus(404); // las rutas públicas de OAuth no existen: los tokens los emite solo la aplicación, tras el login completo
         $this->assertSame(0, DB::table('oauth_access_tokens')->count());
     }
 
-    public function test_the_selection_grant_cannot_be_used_without_a_valid_selection_token(): void
+    public function test_the_selection_grant_is_not_reachable_from_outside(): void
     {
         $ana = $this->user();
         $company = $this->join($ana, 'Ana SRL');
@@ -425,7 +425,7 @@ class OrganizationsLoginTest extends TestCase
             'client_secret' => config('services.passport.password_client_secret'),
             'selection_token' => 'inventado',
             'organization_id' => $company->id,
-        ])->assertStatus(400);
+        ])->assertStatus(404);
         $this->assertSame(0, DB::table('oauth_access_tokens')->count());
     }
 }
