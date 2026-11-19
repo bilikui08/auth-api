@@ -73,6 +73,9 @@ final class RoleController extends Controller
             'description' => $role->description,
             'is_system' => $role->isSystem(),
             'users_count' => $role->users_count ?? null,
+            // Uso en las empresas (personas y empresas distintas): lo que se afecta al cambiar o borrar el rol
+            'members_count' => $role->members_count ?? $this->roles->usage($role)['members'],
+            'organizations_count' => $role->organizations_count ?? $this->roles->usage($role)['organizations'],
             'permissions' => $role->permissions()->orderBy('name')->pluck('name')->all(),
             'created_at' => $role->created_at,
             'updated_at' => $role->updated_at,

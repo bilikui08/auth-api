@@ -206,6 +206,12 @@ El API Gateway usa ese dato para sus reglas de acceso por rol.
 | POST | `/api/auth/users/{id}/roles/{roleId}` | Asigna un rol (idempotente) |
 | DELETE | `/api/auth/users/{id}/roles/{roleId}` | Retira un rol |
 
+Cada rol informa `members_count` / `organizations_count` (personas y empresas distintas que lo usan en las empresas) y `permissions`.
+Protecciones (pantalla «Roles» de la administración del sistema): **un rol en uso no se borra** (esas personas quedarían fuera de su empresa por el borrado
+en cascada: se rechaza con cuántas personas y empresas lo usan); **a un rol en uso no se le quitan todos los permisos**; **`admin` y `user` (roles
+globales) no reciben permisos de empresa**; los permisos de `company_admin` no se tocan. Los permisos los define el código (catálogo): desde la
+aplicación solo se asignan a roles.
+
 Reglas: `name` en minúsculas, números, `-` y `_` (máx. 50) y único; los roles del sistema no
 se renombran ni se eliminan; no se puede dejar al sistema sin ningún `admin`.
 

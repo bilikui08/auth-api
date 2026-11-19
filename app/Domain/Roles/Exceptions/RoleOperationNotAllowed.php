@@ -25,6 +25,24 @@ final class RoleOperationNotAllowed extends DomainException
         return new self("El rol «{$name}» es del sistema y no se puede modificar ni eliminar.");
     }
 
+    public static function inUse(string $name, int $members, int $organizations): self
+    {
+        $people = $members === 1 ? '1 persona' : "{$members} personas";
+        $companies = $organizations === 1 ? '1 empresa' : "{$organizations} empresas";
+
+        return new self("El rol «{$name}» lo usan {$people} en {$companies}: cambiales el rol antes de borrarlo, o quedarían fuera de la empresa.");
+    }
+
+    public static function emptyRoleInUse(string $name): self
+    {
+        return new self("El rol «{$name}» está en uso: no se le pueden quitar todos los permisos (quienes lo tienen quedarían sin poder hacer nada). Cambiales el rol primero.");
+    }
+
+    public static function globalRole(string $name): self
+    {
+        return new self("«{$name}» es un rol global de la plataforma: no lleva permisos de empresa.");
+    }
+
     public static function lastAdmin(): self
     {
         return new self('Debe existir al menos un usuario con el rol «admin».');
