@@ -2,6 +2,7 @@
 
 namespace App\Auth\Passport;
 
+use App\Application\Organizations\OrganizationAccess;
 use App\Models\User;
 use DateTimeImmutable;
 use Lcobucci\JWT\Token;
@@ -15,7 +16,9 @@ use League\OAuth2\Server\Entities\Traits\TokenEntityTrait;
  * Access token de Passport que, además de los claims estándar (aud, jti, iat, nbf, exp, sub, scopes), lleva
  * datos del usuario que los servicios (billing, etc.) necesitan para auditar sin consultar a auth-api.
  *
- * Hoy agrega `name`. Los claims se calculan al emitir el token (login y refresh), así que un cambio tarda
+ * Agrega `name` y, si se emite para una empresa (ver TokenContext), `org` (id de la empresa) y `permissions` (los
+ * permisos de la persona en esa empresa). Billing y los demás servicios se guían por `org` para saber de quién son
+ * los datos y por `permissions` para saber qué puede hacer. Los claims se calculan al emitir el token (login y refresh), así que un cambio tarda
  * hasta el siguiente refresh (el access token dura minutos) en reflejarse.
  *
  * ATENCIÓN: el JWT va firmado pero NO cifrado: cualquiera que tenga el token puede leer sus claims. No agregar
@@ -71,7 +74,7 @@ final class ClaimsAccessToken implements AccessTokenEntityInterface
      * Claims del usuario dueño del token. Vacío si el token no es de un usuario (client credentials)
      * o si el usuario ya no existe.
      *
-     * @return array<string, string>
+     * @return array<string, mixed>
      */
     private function userClaims(): array
     {
@@ -82,7 +85,15 @@ final class ClaimsAccessToken implements AccessTokenEntityInterface
         }
 
         $name = User::query()->whereKey($userId)->value('name');
+        $claims = $name === null || $name === '' ? [] : ['name' => (string) $name];
 
-        return $name === null || $name === '' ? [] : ['name' => (string) $name];
+        $organizationId = app(TokenContext::class)->organizationId;
+
+        if ($organizationId !== null) {
+            $claims['org'] = $organizationId;
+            $claims['permissions'] = app(OrganizationAccess::class)->permissionsOf((int) $userId, $organizationId);
+        }
+
+        return $claims;
     }
 }

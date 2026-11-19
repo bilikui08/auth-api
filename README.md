@@ -235,6 +235,8 @@ Además de los claims estándar (`aud`, `jti`, `iat`, `nbf`, `exp`, `sub`, `scop
 | Claim  | Valor                                  | Para qué                                                        |
 |--------|----------------------------------------|-----------------------------------------------------------------|
 | `name` | nombre del usuario al emitir el token  | que los servicios auditen "quién hizo qué" sin consultar a auth-api |
+| `org`  | id de la empresa con la que se emitió  | de quién son los datos (billing filtra por esto)                |
+| `permissions` | permisos de la persona en esa empresa | qué puede hacer (`sales.invoice.annul`, ...): los servicios chequean permisos, nunca roles |
 
 - Los arma `App\Auth\Passport\ClaimsAccessToken`, registrada con `Passport::useAccessTokenEntity()` en `AppServiceProvider`.
   Es una copia de `Laravel\Passport\Bridge\AccessToken` porque league/oauth2-server construye el JWT en un método privado.
@@ -242,7 +244,33 @@ Además de los claims estándar (`aud`, `jti`, `iat`, `nbf`, `exp`, `sub`, `scop
 - Se calculan al emitir el token (login y refresh): un cambio de nombre tarda hasta el siguiente refresh en reflejarse.
 - **El JWT no está cifrado**: cualquiera que lo tenga puede leer los claims. No agregar datos sensibles (email, documentos).
 - Los tokens emitidos antes de este cambio no traen `name`: los servicios deben tolerar su ausencia.
-- Más adelante se pueden agregar acá los permisos del usuario (mismo mecanismo).
+- `org` y `permissions` se calculan al emitir y al renovar (refresh): un cambio de rol o de pertenencia tarda hasta 15 min en verse.
+
+## Empresas (organizaciones) y permisos por empresa
+
+Una **empresa** reúne a varias personas, cada una con uno o más **roles** allí (`organization_user`): la misma persona puede ser
+administradora en una empresa y lectora en otra. Un rol es un grupo de **permisos** (`permission_role`); los permisos se
+llaman `modulo.recurso.accion` y su catálogo está en `App\Application\Organizations\PermissionCatalog`
+(`php artisan permissions:sync` agrega los que falten; no quita nada). Roles de fábrica: `company_admin` (todos), `seller`,
+`accountant`, `viewer`. Los usuarios que ya existían recibieron una empresa propia con **su mismo id** (`organizations.id = users.id`).
+
+**Login en dos pasos, solo cuando hace falta:**
+
+1. `POST /api/auth/login` valida usuario y contraseña.
+   - Una empresa → entra directo: `data = {user, organization, tokens}`.
+   - Varias → **no emite tokens**: `data = {user, requires_organization: true, selection_token, selection_expires_in, organizations: [{id, name}]}`.
+   - Ninguna → 403 "Tu usuario no tiene empresas asignadas".
+2. `POST /api/auth/select-organization {selection_token, organization_id}` → `{user, organization, tokens}`.
+   El `selection_token` vale 5 minutos y **un solo uso**; no es un access token.
+
+- `POST /api/auth/switch-organization {refresh_token, organization_id}`: cambia de empresa sin contraseña (emite tokens nuevos).
+- `POST /api/auth/refresh` conserva la empresa de la sesión y la **revalida**: si la persona ya no pertenece (o la empresa se dio de baja) responde 401.
+- `GET /api/auth/organizations` (Bearer): empresas de la persona y cuál es la actual (`current`). `GET /api/auth/me` suma `organization_id` y `permissions`.
+- Todos los tokens salen por el grant propio `organization_selection` (login) o por el refresh que conserva la empresa
+  (`App\Auth\Passport\*`). El grant `password` de `/oauth/token` ya no está habilitado.
+- **El cliente OAuth debe tener el grant `organization_selection`** en `oauth_clients.grant_types` (la migración lo agrega a los
+  clientes `password` existentes; un cliente nuevo hay que crearlo con ese grant).
+- Hasta que exista la pantalla de administración: `php artisan org:assign tu@mail.com <empresaId> seller [--revoke]`.
 
 ## Verificar si Passport está instalado
 

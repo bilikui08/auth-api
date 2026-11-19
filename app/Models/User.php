@@ -26,6 +26,12 @@ class User extends Authenticatable
         return $this->belongsToMany(Role::class)->withTimestamps();
     }
 
+    /** @return BelongsToMany<Organization, $this> */
+    public function organizations(): BelongsToMany
+    {
+        return $this->belongsToMany(Organization::class)->withPivot('role_id')->withTimestamps();
+    }
+
     /** @return list<string> */
     public function roleNames(): array
     {

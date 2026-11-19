@@ -6,9 +6,11 @@ use App\Domain\Auth\DTO\TokenData;
 
 interface TokenRepository
 {
-    public function issue(string $identifier, string $password): TokenData;
+    /** Emite los tokens de una empresa con el permiso temporal que se obtuvo al validar las credenciales. */
+    public function issueForOrganization(string $selectionToken, int $organizationId): TokenData;
 
-    public function refresh(string $refreshToken): TokenData;
+    /** Renueva los tokens conservando la empresa de la sesión, o cambiando a $organizationId si se indica. */
+    public function refresh(string $refreshToken, ?int $organizationId = null): TokenData;
 
     public function revoke(string $accessTokenId): void;
 }

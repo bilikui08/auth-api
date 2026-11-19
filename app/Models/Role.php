@@ -17,11 +17,17 @@ class Role extends Model
     public const USER = 'user';
 
     /** Roles que no se pueden borrar ni renombrar. */
-    public const SYSTEM = [self::ADMIN, self::USER];
+    public const SYSTEM = [self::ADMIN, self::USER, 'company_admin'];
 
     public function users(): BelongsToMany
     {
         return $this->belongsToMany(User::class)->withTimestamps();
+    }
+
+    /** @return BelongsToMany<Permission, $this> */
+    public function permissions(): BelongsToMany
+    {
+        return $this->belongsToMany(Permission::class);
     }
 
     public function isSystem(): bool

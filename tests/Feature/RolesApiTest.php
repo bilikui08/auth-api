@@ -30,7 +30,7 @@ class RolesApiTest extends TestCase
 
     public function test_system_roles_exist_after_migrating(): void
     {
-        $this->assertEqualsCanonicalizing(['admin', 'user'], Role::pluck('name')->all());
+        $this->assertEqualsCanonicalizing(['admin', 'user', 'company_admin', 'seller', 'accountant', 'viewer'], Role::pluck('name')->all());
     }
 
     // ---------- acceso ----------
@@ -64,7 +64,7 @@ class RolesApiTest extends TestCase
         $this->getJson('/api/auth/roles')
             ->assertOk()
             ->assertJsonPath('success', true)
-            ->assertJsonCount(3, 'data')
+            ->assertJsonCount(Role::count(), 'data')
             ->assertJsonFragment(['name' => 'editor', 'users_count' => 1, 'is_system' => false]);
     }
 

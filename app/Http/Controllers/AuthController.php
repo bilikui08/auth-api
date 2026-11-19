@@ -8,18 +8,64 @@ use App\Http\Requests\Auth\ForgotPasswordRequest;
 use App\Http\Requests\Auth\LogoutRequest;
 use App\Http\Requests\Auth\RefreshTokenRequest;
 use App\Http\Requests\Auth\RegisterRequest;
+use App\Http\Requests\Auth\SelectOrganizationRequest;
+use App\Http\Requests\Auth\SwitchOrganizationRequest;
+use App\Application\Organizations\OrganizationAccess;
+use App\Auth\Passport\TokenOrganizations;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 final class AuthController extends Controller
 {
-    public function __construct(private readonly AuthService $service) {}
+    public function __construct(
+        private readonly AuthService $service,
+        private readonly OrganizationAccess $access,
+        private readonly TokenOrganizations $tokenOrganizations,
+    ) {}
 
     public function login(AuthRequest $request): JsonResponse
     {
         return response()->json([
             'message' => 'Autenticación exitosa.',
             'data' => $this->service->authenticate($request->toDto()),
+        ]);
+    }
+
+    /** Segundo paso del login con varias empresas: elige una y recibe los tokens. */
+    public function selectOrganization(SelectOrganizationRequest $request): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Autenticación exitosa.',
+            'data' => $this->service->selectOrganization(
+                (string) $request->validated('selection_token'),
+                (int) $request->validated('organization_id'),
+            ),
+        ]);
+    }
+
+    /** Cambia de empresa con el refresh token de la sesión. */
+    public function switchOrganization(SwitchOrganizationRequest $request): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Empresa cambiada correctamente.',
+            'data' => $this->service->switchOrganization(
+                (string) $request->validated('refresh_token'),
+                (int) $request->validated('organization_id'),
+            ),
+        ]);
+    }
+
+    /** Empresas con las que puede trabajar la persona autenticada (y cuál es la actual). */
+    public function organizations(Request $request): JsonResponse
+    {
+        $current = $this->currentOrganizationId($request);
+
+        return response()->json([
+            'message' => 'Empresas del usuario.',
+            'data' => [
+                'current' => $current,
+                'organizations' => $this->service->organizationsOf($request->user()->id),
+            ],
         ]);
     }
 
@@ -64,7 +110,29 @@ final class AuthController extends Controller
         return response()->json([
             'message' => 'Usuario autenticado.',
             // Los roles van como lista de nombres: es lo que consume el API Gateway.
-            'data' => [...$request->user()->toArray(), 'roles' => $request->user()->roleNames()],
+            'data' => [
+                ...$request->user()->toArray(),
+                'roles' => $request->user()->roleNames(),
+                ...$this->organizationData($request),
+            ],
         ]);
+    }
+
+    private function currentOrganizationId(Request $request): ?int
+    {
+        $tokenId = $request->user()->token()?->id;
+
+        return $tokenId === null ? null : $this->tokenOrganizations->organizationOf((string) $tokenId);
+    }
+
+    /** @return array{organization_id: int|null, permissions: list<string>} */
+    private function organizationData(Request $request): array
+    {
+        $organizationId = $this->currentOrganizationId($request);
+
+        return [
+            'organization_id' => $organizationId,
+            'permissions' => $organizationId === null ? [] : $this->access->permissionsOf($request->user()->id, $organizationId),
+        ];
     }
 }

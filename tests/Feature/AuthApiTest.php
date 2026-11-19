@@ -17,12 +17,22 @@ class AuthApiTest extends TestCase
 {
     use RefreshDatabase;
 
+    /** Usuario con contraseña "password" (la del factory) y su empresa propia, como todo usuario real. */
+    private function userWithOrganization(array $attributes = []): User
+    {
+        $user = User::factory()->create($attributes);
+        $organization = \App\Models\Organization::create(['name' => $user->name]);
+        $organization->users()->attach($user->id, ['role_id' => Role::where('name', 'company_admin')->value('id')]);
+
+        return $user;
+    }
+
     public function test_user_can_authenticate_with_email(): void
     {
-        $user = User::factory()->create(['email' => 'john@example.com']);
-        $this->mockTokens()->shouldReceive('issue')
+        $user = $this->userWithOrganization(['email' => 'john@example.com']);
+        $this->mockTokens()->shouldReceive('issueForOrganization')
             ->once()
-            ->with('john@example.com', 'password')
+            ->with(Mockery::type('string'), $user->id)
             ->andReturn($this->tokenData());
 
         $this->postJson('/api/auth/login', [
@@ -37,10 +47,10 @@ class AuthApiTest extends TestCase
 
     public function test_user_can_authenticate_with_name(): void
     {
-        $user = User::factory()->create(['name' => 'john']);
-        $this->mockTokens()->shouldReceive('issue')
+        $user = $this->userWithOrganization(['name' => 'john']);
+        $this->mockTokens()->shouldReceive('issueForOrganization')
             ->once()
-            ->with('john', 'password')
+            ->with(Mockery::type('string'), $user->id)
             ->andReturn($this->tokenData());
 
         $this->postJson('/api/auth/login', [
@@ -51,10 +61,7 @@ class AuthApiTest extends TestCase
 
     public function test_user_can_register_and_receives_tokens(): void
     {
-        $this->mockTokens()->shouldReceive('issue')
-            ->once()
-            ->with('jane@example.com', 'password123')
-            ->andReturn($this->tokenData());
+        $this->mockTokens()->shouldReceive('issueForOrganization')->once()->andReturn($this->tokenData());
 
         $this->postJson('/api/auth/register', [
             'name' => 'Jane',
@@ -174,7 +181,7 @@ class AuthApiTest extends TestCase
 
     public function test_register_assigns_the_default_user_role_and_ignores_a_requested_role(): void
     {
-        $this->mockTokens()->shouldReceive('issue')->once()->andReturn($this->tokenData());
+        $this->mockTokens()->shouldReceive('issueForOrganization')->once()->andReturn($this->tokenData());
 
         $this->postJson('/api/auth/register', [
             'name' => 'Mallory',

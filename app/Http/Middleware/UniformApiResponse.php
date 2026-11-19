@@ -4,6 +4,7 @@ namespace App\Http\Middleware;
 
 use App\Domain\Auth\Exceptions\InvalidCredentials;
 use App\Domain\Auth\Exceptions\OAuthClientNotConfigured;
+use App\Domain\Organizations\Exceptions\OrganizationAccessDenied;
 use Closure;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Http\JsonResponse;
@@ -22,6 +23,8 @@ final class UniformApiResponse
             return $this->error('Los datos enviados no son válidos.', $exception->errors(), 422);
         } catch (InvalidCredentials $exception) {
             return $this->error($exception->getMessage(), null, 401);
+        } catch (OrganizationAccessDenied $exception) {
+            return $this->error($exception->getMessage(), null, 403);
         } catch (AuthenticationException) {
             return $this->error('No autenticado.', null, 401);
         } catch (OAuthClientNotConfigured $exception) {
@@ -72,7 +75,10 @@ final class UniformApiResponse
         return match ($status) {
             // Conserva el mensaje propio (ej. credenciales inválidas); solo traduce el genérico de Laravel.
             401 => $fallback !== '' && $fallback !== 'Unauthenticated.' ? $fallback : 'No autenticado.',
-            403 => 'No tiene permisos para realizar esta acción.',
+            // Conserva el motivo propio (ej. sin empresas asignadas); solo traduce los genéricos de Laravel
+            403 => $fallback !== '' && ! in_array($fallback, ['This action is unauthorized.', 'Forbidden'], true)
+                ? $fallback
+                : 'No tiene permisos para realizar esta acción.',
             404 => 'El recurso solicitado no existe.',
             default => $fallback !== '' ? $fallback : 'La solicitud no pudo ser procesada.',
         };

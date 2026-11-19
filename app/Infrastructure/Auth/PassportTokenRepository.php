@@ -2,6 +2,8 @@
 
 namespace App\Infrastructure\Auth;
 
+use App\Auth\Passport\OrganizationSelectionGrant;
+use App\Auth\Passport\TokenContext;
 use App\Domain\Auth\Contracts\TokenRepository;
 use App\Domain\Auth\DTO\TokenData;
 use App\Domain\Auth\Exceptions\InvalidCredentials;
@@ -20,25 +22,32 @@ final readonly class PassportTokenRepository implements TokenRepository
     public function __construct(
         private AuthorizationServer $server,
         private AccessTokenRepository $accessTokens,
+        private TokenContext $context,
     ) {}
 
-    public function issue(string $identifier, string $password): TokenData
+    public function issueForOrganization(string $selectionToken, int $organizationId): TokenData
     {
         return $this->requestToken([
-            'grant_type' => 'password',
-            'username' => $identifier,
-            'password' => $password,
+            'grant_type' => OrganizationSelectionGrant::IDENTIFIER,
+            'selection_token' => $selectionToken,
+            'organization_id' => (string) $organizationId,
             'scope' => '',
         ]);
     }
 
-    public function refresh(string $refreshToken): TokenData
+    public function refresh(string $refreshToken, ?int $organizationId = null): TokenData
     {
-        return $this->requestToken([
-            'grant_type' => 'refresh_token',
-            'refresh_token' => $refreshToken,
-            'scope' => '',
-        ]);
+        $this->context->requestedOrganizationId = $organizationId;
+
+        try {
+            return $this->requestToken([
+                'grant_type' => 'refresh_token',
+                'refresh_token' => $refreshToken,
+                'scope' => '',
+            ]);
+        } finally {
+            $this->context->reset();
+        }
     }
 
     public function revoke(string $accessTokenId): void
@@ -74,16 +83,24 @@ final readonly class PassportTokenRepository implements TokenRepository
             $body = json_decode((string) $response->getBody(), true, 512, JSON_THROW_ON_ERROR);
         } catch (OAuthServerException $exception) {
             if (in_array($exception->getErrorType(), ['invalid_grant', 'access_denied'], true)) {
+                // Los motivos propios (empresa, permiso vencido) los explican ellos mismos
+                $hint = (string) $exception->getHint();
+
                 throw new InvalidCredentials(
-                    $payload['grant_type'] === 'refresh_token'
-                        ? 'El refresh token es inválido, expiró o ya fue utilizado.'
-                        : 'Las credenciales ingresadas no son válidas.',
+                    str_contains($hint, 'empresa')
+                        ? $hint
+                        : ($payload['grant_type'] === 'refresh_token'
+                            ? 'El refresh token es inválido, expiró o ya fue utilizado.'
+                            : 'Las credenciales ingresadas no son válidas.'),
                 );
             }
 
             throw new RuntimeException('Passport no pudo emitir el token.', previous: $exception);
         } catch (JsonException $exception) {
             throw new RuntimeException('Passport devolvió una respuesta inválida.', previous: $exception);
+        } finally {
+            // El contexto vale solo para esta emisión: no puede filtrarse a la siguiente
+            $this->context->reset();
         }
 
         return new TokenData(
