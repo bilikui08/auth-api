@@ -19,7 +19,7 @@ final class InvitationMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: "{$this->inviterName} te invitó a {$this->organization->name} en Facturín");
+        return new Envelope(subject: "{$this->inviterName} te invitó a {$this->organization->name} en " . config('app.name'));
     }
 
     public function content(): Content

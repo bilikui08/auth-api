@@ -93,6 +93,23 @@ class InvitationsTest extends TestCase
 
     // ------------------------------------------------------------------ invitar
 
+    public function test_the_mails_carry_the_configured_system_name_not_a_hardcoded_one(): void
+    {
+        config(['app.name' => 'Mi ERP']);
+        $this->invite()->assertCreated();
+
+        $mail = Mail::sent(InvitationMail::class)->first();
+        $this->assertSame('Ana te invitó a Empresa A SA en Mi ERP', $mail->envelope()->subject);
+        $this->assertStringContainsString('Mi ERP', $mail->render());
+        $this->assertStringNotContainsString('Facturín', $mail->render());
+
+        $dani = User::factory()->create(['name' => 'Dani', 'email' => 'dani@example.com']);
+        $this->invite(['email' => 'dani@example.com', 'roles' => ['viewer']])->assertCreated();
+        $added = Mail::sent(AddedToOrganizationMail::class)->first();
+        $this->assertSame('Ahora podés trabajar con Empresa A SA en Mi ERP', $added->envelope()->subject);
+        $this->assertStringNotContainsString('Facturín', $added->render());
+    }
+
     public function test_an_unknown_email_gets_an_invitation_by_mail_and_nothing_else_is_created(): void
     {
         $response = $this->invite()->assertCreated()->assertJsonPath('data.status', 'invited')->assertJsonPath('data.email_sent', true);

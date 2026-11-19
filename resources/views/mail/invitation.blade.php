@@ -1,7 +1,7 @@
 <x-mail::message>
-# Te invitaron a Facturín
+# Te invitaron a {{ config('app.name') }}
 
-**{{ $inviterName }}** te invitó a trabajar con los datos de **{{ $organization->name }}** en Facturín.
+**{{ $inviterName }}** te invitó a trabajar con los datos de **{{ $organization->name }}** en {{ config('app.name') }}.
 
 <x-mail::button :url="$acceptUrl">
 Aceptar la invitación

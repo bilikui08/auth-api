@@ -18,7 +18,7 @@ final class AddedToOrganizationMail extends Mailable
 
     public function envelope(): Envelope
     {
-        return new Envelope(subject: "Ahora podés trabajar con {$this->organization->name} en Facturín");
+        return new Envelope(subject: "Ahora podés trabajar con {$this->organization->name} en " . config('app.name'));
     }
 
     public function content(): Content
