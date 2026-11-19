@@ -311,6 +311,46 @@ class SystemAndEmailTemplatesTest extends TestCase
         $this->assertSame(0, EmailTemplate::count(), 'la vista previa no guarda nada');
     }
 
+    public function test_the_preview_can_use_other_example_data_like_juancito(): void
+    {
+        $response = $this->as($this->root)->postJson('/api/auth/admin/email-templates/invitation/preview', $this->body(['samples' => ['invitador' => 'Juancito', 'empresa' => 'Kiosco Pepe', 'dias' => '3']]))->assertOk();
+
+        $this->assertSame('Juancito te espera en Kiosco Pepe', $response->json('data.subject'));
+        $this->assertStringContainsString('Juancito', $response->json('data.html'));
+        $this->assertStringContainsString('3 días', $response->json('data.html'));
+        $this->assertSame(0, EmailTemplate::count(), 'los ejemplos no se guardan');
+    }
+
+    public function test_blank_examples_fall_back_to_the_defaults_and_the_samples_are_escaped(): void
+    {
+        $response = $this->as($this->root)->postJson('/api/auth/admin/email-templates/invitation/preview', $this->body(['samples' => ['invitador' => '   ', 'empresa' => '<b>X</b>']]))->assertOk();
+
+        $this->assertSame('Ana Pérez te espera en <b>X</b>', $response->json('data.subject'));
+        $this->assertStringNotContainsString('<b>X</b>', $response->json('data.html'));
+    }
+
+    public function test_the_examples_are_validated_and_never_saved_with_the_template(): void
+    {
+        foreach ([['sistema' => 'Otro'], ['dias' => 'x', 'inventada' => 'y'], ['invitador' => str_repeat('a', 61)], ['invitador' => "con\nsalto"]] as $samples) {
+            $this->as($this->root)->postJson('/api/auth/admin/email-templates/invitation/preview', $this->body(['samples' => $samples]))->assertUnprocessable();
+        }
+
+        $this->as($this->root)->putJson('/api/auth/admin/email-templates/invitation', $this->body(['samples' => ['invitador' => 'Juancito']]))->assertOk();
+        $this->assertSame(['subject', 'heading', 'body', 'button_label'], array_keys(EmailTemplate::firstOrFail()->only(['subject', 'heading', 'body', 'button_label'])));
+        $this->assertSame('Ana te espera en Empresa A SA', (new InvitationMail($this->a, 'Ana', 'https://app.ejemplo.com/x', 7))->rendered()->subject, 'los ejemplos no se usan en los correos reales');
+    }
+
+    public function test_each_variable_tells_its_example_and_whether_it_can_be_changed(): void
+    {
+        $variables = collect($this->as($this->root)->getJson('/api/auth/admin/email-templates')->json('data.0.variables'))->keyBy('name');
+
+        $this->assertSame('Ana Pérez', $variables['invitador']['example']);
+        $this->assertTrue($variables['invitador']['editable']);
+        $this->assertSame('7', $variables['dias']['example']);
+        $this->assertNull($variables['sistema']['example']);
+        $this->assertFalse($variables['sistema']['editable']);
+    }
+
     public function test_a_draft_with_a_link_is_refused_by_the_preview_too(): void
     {
         $this->as($this->root)->postJson('/api/auth/admin/email-templates/invitation/preview', $this->body(['body' => 'Entrá a https://malo.example.com']))->assertUnprocessable();

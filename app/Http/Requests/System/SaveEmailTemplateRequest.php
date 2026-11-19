@@ -23,6 +23,9 @@ final class SaveEmailTemplateRequest extends FormRequest
         $check = $this->check($key);
 
         return [
+            // Datos de ejemplo para la vista previa y la prueba (no se guardan): por ejemplo invitador = "Juancito"
+            'samples' => ['sometimes', 'array', 'max:10', $this->checkSampleKeys($key)],
+            'samples.*' => ['nullable', 'string', 'max:60', 'not_regex:/[\x00-\x1F\x7F]/'],
             'subject' => ['required', 'string', 'max:150', 'not_regex:/[\r\n]/', $check],
             'heading' => ['required', 'string', 'max:120', 'not_regex:/[\r\n]/', $check],
             'body' => ['required', 'string', 'max:4000', $check],
@@ -37,6 +40,23 @@ final class SaveEmailTemplateRequest extends FormRequest
             'heading.not_regex' => 'El título debe ir en una sola línea.',
             'button_label.not_regex' => 'El botón debe ir en una sola línea.',
         ];
+    }
+
+    /** Los ejemplos solo pueden ser de variables que la plantilla tiene (y no del nombre del sistema, que sale de los ajustes). */
+    private function checkSampleKeys(string $key): \Closure
+    {
+        return function (string $attribute, mixed $value, \Closure $fail) use ($key): void {
+            if (! is_array($value) || ! EmailTemplateRegistry::exists($key)) {
+                return;
+            }
+
+            $allowed = array_values(array_diff(array_keys(EmailTemplateRegistry::definition($key)['variables']), ['sistema']));
+            $unknown = array_diff(array_keys($value), $allowed);
+
+            if ($unknown !== []) {
+                $fail('No se puede dar un ejemplo para: ' . implode(', ', $unknown) . '. Podés usar: ' . implode(', ', $allowed) . '.');
+            }
+        };
     }
 
     private function check(string $key): \Closure

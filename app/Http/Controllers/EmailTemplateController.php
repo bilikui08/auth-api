@@ -28,7 +28,7 @@ final class EmailTemplateController extends Controller
 
     public function update(SaveEmailTemplateRequest $request, string $key): JsonResponse
     {
-        $this->templates->save($key, $request->validated(), $request->user()->id);
+        $this->templates->save($key, $this->draftOf($request), $request->user()->id);
 
         return response()->json(['message' => 'Plantilla guardada.', 'data' => $this->present($key)]);
     }
@@ -45,7 +45,7 @@ final class EmailTemplateController extends Controller
     /** Vista previa de un borrador (sin guardarlo) con datos de ejemplo: asunto y el correo completo en HTML. */
     public function preview(SaveEmailTemplateRequest $request, string $key): JsonResponse
     {
-        $mail = $this->sampleMail($key, $request->validated());
+        $mail = $this->sampleMail($key, $this->draftOf($request), $request->validated('samples', []));
 
         return response()->json(['message' => 'Vista previa.', 'data' => ['subject' => $mail->rendered()->subject, 'html' => $mail->render()]]);
     }
@@ -56,7 +56,7 @@ final class EmailTemplateController extends Controller
      */
     public function test(SaveEmailTemplateRequest $request, string $key): JsonResponse
     {
-        $mail = $this->sampleMail($key, $request->validated());
+        $mail = $this->sampleMail($key, $this->draftOf($request), $request->validated('samples', []));
 
         try {
             Mail::to($request->user()->email)->send($mail);
@@ -77,11 +77,20 @@ final class EmailTemplateController extends Controller
         abort_unless(EmailTemplateRegistry::exists($key), 404);
     }
 
-    /** @param array<string, string>|null $draft */
-    private function sampleMail(string $key, ?array $draft): TemplatedMail
+    /** Los cuatro textos de la plantilla (sin los datos de ejemplo, que no se guardan). @return array<string, string> */
+    private function draftOf(SaveEmailTemplateRequest $request): array
+    {
+        return $request->safe()->only(['subject', 'heading', 'body', 'button_label']);
+    }
+
+    /**
+     * @param array<string, string>|null $draft
+     * @param array<string, string|null> $overrides Datos de ejemplo que eligió quien edita (los vacíos usan el ejemplo por defecto)
+     */
+    private function sampleMail(string $key, ?array $draft, array $overrides = []): TemplatedMail
     {
         $this->guard($key);
-        $samples = EmailTemplateRegistry::definition($key)['samples'];
+        $samples = array_filter($overrides, fn ($v) => is_string($v) && trim($v) !== '') + EmailTemplateRegistry::definition($key)['samples'];
         $organization = new Organization(['name' => $samples['empresa']]);
         $url = rtrim((string) config('app.frontend_url'), '/');
 
@@ -102,7 +111,13 @@ final class EmailTemplateController extends Controller
             'key' => $key,
             'label' => $definition['label'],
             'description' => $definition['description'],
-            'variables' => collect($definition['variables'])->map(fn (string $description, string $name): array => ['name' => $name, 'description' => $description])->values()->all(),
+            // `example`: con qué dato se ve en la vista previa; `editable`: se puede probar con otro (el nombre del sistema sale de los ajustes)
+            'variables' => collect($definition['variables'])->map(fn (string $description, string $name): array => [
+                'name' => $name,
+                'description' => $description,
+                'example' => $name === 'sistema' ? null : $definition['samples'][$name],
+                'editable' => $name !== 'sistema',
+            ])->values()->all(),
             'is_customized' => $this->templates->isCustomized($key),
             'current' => $this->templates->current($key),
             'defaults' => $this->templates->defaults($key),
