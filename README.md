@@ -1119,6 +1119,20 @@ anterior; un token desconocido, vencido, cancelado o usado responde lo mismo (40
 límite de frecuencia (30/min consulta, 10/min aceptación). El correo sale en el momento (el hosting no tiene procesos en segundo plano): si
 falla, la invitación queda guardada y se puede reenviar.
 
+## Restablecer la contraseña (olvidé mi contraseña)
+
+1. `POST /api/auth/forgot-password` `{email}`: si el email tiene cuenta, se le manda un correo (plantilla editable `password_reset`) con el enlace
+   `FRONTEND_URL/reset-password?token=...&email=...`. **La respuesta es siempre la misma**, exista o no la cuenta, y si el correo no sale
+   (servidor SMTP caído) se reporta pero tampoco se le cuenta a quien lo pidió.
+2. La pantalla pública puede verificar el enlace sin gastarlo con `POST /api/auth/reset-password/check` `{email, token}` (200 o 422).
+3. `POST /api/auth/reset-password` `{email, token, password, password_confirmation}` (mínimo 8 caracteres) cambia la contraseña, **consume el enlace**
+   y **cierra todas las sesiones** de la persona (revoca sus access y refresh tokens).
+
+Seguridad: usa el mecanismo de Laravel (`password_reset_tokens`): el token se guarda **hasheado**, **vale 60 minutos** (`auth.passwords.users.expire`),
+es de **un solo uso** y pedir otro invalida el anterior; pedir de nuevo antes de 60 segundos no manda otro correo (respuesta idéntica). Un
+token desconocido, vencido, usado o de otro email responde lo mismo (422 con un único mensaje). Límite de frecuencia: 5/min el pedido,
+20/min la verificación y 10/min el cambio. No inicia sesión sola: después de cambiarla se ingresa con la nueva.
+
 ### Ajustes del sistema y plantillas de correo (administración del sistema)
 
 El **servidor de correo (SMTP) y todo secreto viven solo en el `.env`**: nunca se editan desde la aplicación (quien pudiera cambiar el SMTP

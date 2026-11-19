@@ -7,6 +7,7 @@ use App\Application\Mail\EmailTemplateService;
 use App\Http\Requests\System\SaveEmailTemplateRequest;
 use App\Mail\AddedToOrganizationMail;
 use App\Mail\InvitationMail;
+use App\Mail\PasswordResetMail;
 use App\Mail\TemplatedMail;
 use App\Models\Organization;
 use Illuminate\Http\JsonResponse;
@@ -91,12 +92,14 @@ final class EmailTemplateController extends Controller
     {
         $this->guard($key);
         $samples = array_filter($overrides, fn ($v) => is_string($v) && trim($v) !== '') + EmailTemplateRegistry::definition($key)['samples'];
-        $organization = new Organization(['name' => $samples['empresa']]);
+        $organization = new Organization(['name' => $samples['empresa'] ?? '']);
         $url = rtrim((string) config('app.frontend_url'), '/');
 
-        $mail = $key === EmailTemplateRegistry::INVITATION
-            ? new InvitationMail($organization, $samples['invitador'], $url . '/accept-invitation?token=EJEMPLO', (int) $samples['dias'])
-            : new AddedToOrganizationMail($organization, $samples['invitador'], $url . '/');
+        $mail = match ($key) {
+            EmailTemplateRegistry::INVITATION => new InvitationMail($organization, $samples['invitador'], $url . '/accept-invitation?token=EJEMPLO', (int) $samples['dias']),
+            EmailTemplateRegistry::PASSWORD_RESET => new PasswordResetMail($url . '/reset-password?token=EJEMPLO', (int) $samples['minutos']),
+            default => new AddedToOrganizationMail($organization, $samples['invitador'], $url . '/'),
+        };
         $mail->draft = $draft;
 
         return $mail;

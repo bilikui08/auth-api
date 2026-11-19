@@ -12,6 +12,7 @@ final class EmailTemplateRegistry
 {
     public const INVITATION = 'invitation';
     public const ADDED_TO_ORGANIZATION = 'added_to_organization';
+    public const PASSWORD_RESET = 'password_reset';
 
     /**
      * @return array<string, array{label: string, description: string, variables: array<string, string>, samples: array<string, string>, defaults: array{subject: string, heading: string, body: string, button_label: string}}>
@@ -50,6 +51,21 @@ final class EmailTemplateRegistry
                     'heading' => 'Ahora trabajás con {empresa}',
                     'body' => "**{invitador}** te sumó a **{empresa}** en {sistema}. La próxima vez que ingreses vas a poder elegir esa empresa.\n\nSi no esperabas este aviso, avisale a quien administra la empresa.",
                     'button_label' => 'Ingresar',
+                ],
+            ],
+            self::PASSWORD_RESET => [
+                'label' => 'Restablecer contraseña',
+                'description' => 'Le llega a quien pidió restablecer su contraseña, con el botón para elegir una nueva.',
+                'variables' => [
+                    'sistema' => 'Nombre del sistema',
+                    'minutos' => 'Minutos de vigencia del enlace',
+                ],
+                'samples' => ['sistema' => '', 'minutos' => '60'],
+                'defaults' => [
+                    'subject' => 'Restablecé tu contraseña de {sistema}',
+                    'heading' => 'Restablecé tu contraseña',
+                    'body' => "Recibimos un pedido para cambiar la contraseña de tu cuenta de {sistema}.\n\nEl enlace vale {minutos} minutos y se puede usar una sola vez.\n\nSi no lo pediste vos, ignorá este mensaje: tu contraseña no cambia hasta que uses el enlace.",
+                    'button_label' => 'Elegir una contraseña nueva',
                 ],
             ],
         ];

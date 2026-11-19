@@ -22,7 +22,11 @@ Route::prefix('auth')
         // credencial, así que se limita la frecuencia para que no se pueda adivinar.
         Route::get('invitations/{token}', [InvitationController::class, 'show'])->middleware('throttle:30,1')->name('invitations.show');
         Route::post('invitations/{token}/accept', [InvitationController::class, 'accept'])->middleware('throttle:10,1')->name('invitations.accept');
-        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->name('forgot-password');
+        // Restablecer contraseña: el token del enlace (que llega por email, vale 60 minutos y se usa una vez) es la credencial,
+        // así que todo va limitado por frecuencia.
+        Route::post('forgot-password', [AuthController::class, 'forgotPassword'])->middleware('throttle:5,1')->name('forgot-password');
+        Route::post('reset-password/check', [AuthController::class, 'checkPasswordReset'])->middleware('throttle:20,1')->name('reset-password.check');
+        Route::post('reset-password', [AuthController::class, 'resetPassword'])->middleware('throttle:10,1')->name('reset-password');
         Route::post('refresh', [AuthController::class, 'refresh'])->name('refresh');
 
         Route::middleware('auth:api')->group(function (): void {

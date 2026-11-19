@@ -178,12 +178,22 @@ class SystemAndEmailTemplatesTest extends TestCase
     {
         $data = $this->as($this->root)->getJson('/api/auth/admin/email-templates')->assertOk()->json('data');
 
-        $this->assertSame(['invitation', 'added_to_organization'], array_column($data, 'key'));
+        $this->assertSame(['invitation', 'added_to_organization', 'password_reset'], array_column($data, 'key'));
         $invitation = $data[0];
         $this->assertFalse($invitation['is_customized']);
         $this->assertSame($invitation['defaults'], $invitation['current']);
         $this->assertSame(['invitador', 'empresa', 'sistema', 'dias'], array_column($invitation['variables'], 'name'));
         $this->assertNotEmpty($invitation['variables'][0]['description']);
+    }
+
+    public function test_the_password_reset_template_previews_and_sends_a_test(): void
+    {
+        $preview = $this->as($this->root)->postJson('/api/auth/admin/email-templates/password_reset/preview', ['subject' => 'Cambiá tu clave', 'heading' => 'Clave nueva', 'body' => 'El enlace vale {minutos} minutos.', 'button_label' => 'Elegir', 'samples' => ['minutos' => '15']])->assertOk()->json('data');
+        $this->assertStringContainsString('15 minutos', $preview['html']);
+        $this->assertStringContainsString('/reset-password?token=EJEMPLO', $preview['html']);
+
+        $this->as($this->root)->getJson('/api/auth/admin/email-templates')->assertOk()
+            ->assertJsonPath('data.2.variables.1.name', 'minutos');
     }
 
     public function test_a_saved_template_is_used_by_the_real_mail(): void

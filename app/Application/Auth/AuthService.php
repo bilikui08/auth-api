@@ -2,6 +2,7 @@
 
 namespace App\Application\Auth;
 
+use App\Domain\Auth\Exceptions\PasswordResetNotValid;
 use App\Application\Organizations\OrganizationAccess;
 use App\Auth\Passport\SelectionTokens;
 use App\Domain\Auth\Contracts\AuthRepository;
@@ -101,6 +102,19 @@ final readonly class AuthService
     public function forgotPassword(ForgotPasswordData $data): void
     {
         $this->users->sendPasswordResetLink($data->email);
+    }
+
+    /** @throws PasswordResetNotValid si el enlace no sirve */
+    public function checkPasswordReset(string $email, string $token): void
+    {
+        if (! $this->users->passwordResetIsValid($email, $token)) {
+            throw new PasswordResetNotValid;
+        }
+    }
+
+    public function resetPassword(\App\Domain\Auth\DTO\ResetPasswordData $data): void
+    {
+        $this->users->resetPassword($data);
     }
 
     /**

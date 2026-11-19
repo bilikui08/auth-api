@@ -4,7 +4,9 @@ namespace App\Http\Controllers;
 
 use App\Application\Auth\AuthService;
 use App\Http\Requests\Auth\AuthRequest;
+use App\Http\Requests\Auth\CheckResetTokenRequest;
 use App\Http\Requests\Auth\ForgotPasswordRequest;
+use App\Http\Requests\Auth\ResetPasswordRequest;
 use App\Http\Requests\Auth\LogoutRequest;
 use App\Http\Requests\Auth\RefreshTokenRequest;
 use App\Http\Requests\Auth\SelectOrganizationRequest;
@@ -76,6 +78,21 @@ final class AuthController extends Controller
             'message' => 'Si el correo está registrado, recibirá un enlace para restablecer la contraseña.',
             'data' => null,
         ]);
+    }
+
+    /** Para que la pantalla avise antes de pedir la contraseña nueva si el enlace ya no sirve. */
+    public function checkPasswordReset(CheckResetTokenRequest $request): JsonResponse
+    {
+        $this->service->checkPasswordReset((string) $request->validated('email'), (string) $request->validated('token'));
+
+        return response()->json(['message' => 'El enlace es válido.', 'data' => null]);
+    }
+
+    public function resetPassword(ResetPasswordRequest $request): JsonResponse
+    {
+        $this->service->resetPassword($request->toDto());
+
+        return response()->json(['message' => 'Contraseña actualizada. Ya podés ingresar con la nueva.', 'data' => null]);
     }
 
     public function refresh(RefreshTokenRequest $request): JsonResponse
