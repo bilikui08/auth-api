@@ -20,6 +20,15 @@ final class RoleController extends Controller
         ]);
     }
 
+    /** Catálogo completo de permisos (para armar roles). */
+    public function permissions(): JsonResponse
+    {
+        return response()->json([
+            'message' => 'Catálogo de permisos.',
+            'data' => \App\Models\Permission::query()->orderBy('module')->orderBy('name')->get(['name', 'module', 'description'])->all(),
+        ]);
+    }
+
     public function show(Role $role): JsonResponse
     {
         return response()->json([
@@ -64,6 +73,7 @@ final class RoleController extends Controller
             'description' => $role->description,
             'is_system' => $role->isSystem(),
             'users_count' => $role->users_count ?? null,
+            'permissions' => $role->permissions()->orderBy('name')->pluck('name')->all(),
             'created_at' => $role->created_at,
             'updated_at' => $role->updated_at,
         ];

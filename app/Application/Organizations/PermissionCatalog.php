@@ -18,6 +18,7 @@ final class PermissionCatalog
 {
     /** @var array<string, string> nombre => descripción */
     public const PERMISSIONS = [
+        'org.members.manage' => 'Administrar las personas de la empresa y sus roles',
         'sales.invoice.view' => 'Ver comprobantes',
         'sales.invoice.issue' => 'Emitir comprobantes',
         'sales.invoice.annul' => 'Anular comprobantes (nota de crédito)',

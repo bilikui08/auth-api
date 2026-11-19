@@ -22,6 +22,8 @@ final class UpdateRoleRequest extends FormRequest
         return [
             'name' => ['sometimes', 'required', 'string', 'max:50', 'regex:/^[a-z0-9][a-z0-9_-]*$/', Rule::unique('roles', 'name')->ignore($role->id)],
             'description' => ['sometimes', 'nullable', 'string', 'max:255'],
+            'permissions' => ['sometimes', 'array', 'max:100'],
+            'permissions.*' => ['string', 'distinct', 'exists:permissions,name'],
         ];
     }
 }

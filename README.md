@@ -270,7 +270,30 @@ llaman `modulo.recurso.accion` y su catálogo está en `App\Application\Organiza
   (`App\Auth\Passport\*`). El grant `password` de `/oauth/token` ya no está habilitado.
 - **El cliente OAuth debe tener el grant `organization_selection`** en `oauth_clients.grant_types` (la migración lo agrega a los
   clientes `password` existentes; un cliente nuevo hay que crearlo con ese grant).
-- Hasta que exista la pantalla de administración: `php artisan org:assign tu@mail.com <empresaId> seller [--revoke]`.
+- Comando de respaldo: `php artisan org:assign tu@mail.com <empresaId> seller [--revoke]`.
+
+### Administración de empresas (API)
+
+**Administrador de la empresa** (permiso `org.members.manage` en la empresa con la que se emitió el token; se consulta en la base, así que
+un cambio de rol vale al instante):
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET | `/api/auth/organization` | La empresa activa |
+| GET | `/api/auth/organization/members` | Personas de la empresa con sus roles |
+| POST | `/api/auth/organization/members` | Agrega a un usuario **existente**: `{"email": "...", "roles": ["seller"]}` |
+| PUT | `/api/auth/organization/members/{userId}` | Reemplaza sus roles: `{"roles": ["viewer"]}` (mínimo uno) |
+| DELETE | `/api/auth/organization/members/{userId}` | Lo quita (sus sesiones en esa empresa dejan de renovarse) |
+| GET | `/api/auth/organization/roles` | Roles asignables con sus permisos |
+
+Reglas: solo se asignan roles de empresa (los que tienen permisos; nunca los globales `admin` / `user`); la empresa siempre conserva
+al menos un `company_admin`; no se puede tocar a personas de otra empresa. Todavía no hay invitación por email: la persona debe tener
+cuenta (hoy, `POST /auth/register`).
+
+**Administrador del sistema** (rol global `admin`): `GET|POST /api/auth/admin/organizations` (alta con su primer administrador:
+`{"name", "tax_id"?, "admin_email"}`), `PUT /api/auth/admin/organizations/{id}` (`name`, `tax_id`, `is_active`: una empresa inactiva no deja
+entrar ni renovar sesión), `GET /api/auth/admin/users?search=`, `GET /api/auth/permissions` (catálogo) y los roles con permisos
+(`POST|PUT /api/auth/roles` aceptan `permissions: [...]`; los permisos de `company_admin` no se pueden cambiar).
 
 ## Verificar si Passport está instalado
 

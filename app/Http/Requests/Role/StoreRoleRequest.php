@@ -18,6 +18,9 @@ final class StoreRoleRequest extends FormRequest
             // Minusculas, numeros, "-" y "_": son identificadores usados en reglas del gateway.
             'name' => ['required', 'string', 'max:50', 'regex:/^[a-z0-9][a-z0-9_-]*$/', 'unique:roles,name'],
             'description' => ['nullable', 'string', 'max:255'],
+            // Permisos del rol (nombres del catálogo). Un rol sin permisos no se puede asignar en una empresa.
+            'permissions' => ['sometimes', 'array', 'max:100'],
+            'permissions.*' => ['string', 'distinct', 'exists:permissions,name'],
         ];
     }
 }

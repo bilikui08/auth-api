@@ -2,7 +2,10 @@
 
 namespace App\Application\Roles;
 
+use App\Application\Organizations\PermissionCatalog;
+use App\Domain\Organizations\Exceptions\OrganizationOperationNotAllowed;
 use App\Domain\Roles\Exceptions\RoleOperationNotAllowed;
+use App\Models\Permission;
 use App\Models\Role;
 use App\Models\User;
 use Illuminate\Database\Eloquent\Collection;
@@ -16,22 +19,50 @@ final class RoleService
         return Role::query()->withCount('users')->orderBy('name')->get();
     }
 
-    /** @param array{name: string, description?: string|null} $data */
+    /** @param array{name: string, description?: string|null, permissions?: list<string>} $data */
     public function create(array $data): Role
     {
-        return Role::query()->create($data);
+        return DB::transaction(function () use ($data): Role {
+            $permissions = $data['permissions'] ?? [];
+            unset($data['permissions']);
+
+            $role = Role::query()->create($data);
+            $this->syncPermissions($role, $permissions);
+
+            return $role;
+        });
     }
 
-    /** @param array{name?: string, description?: string|null} $data */
+    /** @param array{name?: string, description?: string|null, permissions?: list<string>} $data */
     public function update(Role $role, array $data): Role
     {
         if ($role->isSystem() && isset($data['name']) && $data['name'] !== $role->name) {
             throw RoleOperationNotAllowed::systemRole($role->name);
         }
 
-        $role->update($data);
+        // El rol del dueño de la empresa conserva todos los permisos: si se le pudieran quitar, nadie podría administrar
+        if (array_key_exists('permissions', $data) && $role->name === PermissionCatalog::COMPANY_ADMIN) {
+            throw OrganizationOperationNotAllowed::protectedRole($role->name);
+        }
 
-        return $role;
+        return DB::transaction(function () use ($role, $data): Role {
+            $permissions = $data['permissions'] ?? null;
+            unset($data['permissions']);
+
+            $role->update($data);
+
+            if ($permissions !== null) {
+                $this->syncPermissions($role, $permissions);
+            }
+
+            return $role;
+        });
+    }
+
+    /** @param list<string> $names */
+    private function syncPermissions(Role $role, array $names): void
+    {
+        $role->permissions()->sync(Permission::query()->whereIn('name', $names)->pluck('id')->all());
     }
 
     public function delete(Role $role): void

@@ -1,6 +1,8 @@
 <?php
 
+use App\Http\Controllers\AdminOrganizationController;
 use App\Http\Controllers\AuthController;
+use App\Http\Controllers\OrganizationController;
 use App\Http\Controllers\RoleController;
 use App\Http\Controllers\UserRoleController;
 use Illuminate\Support\Facades\Route;
@@ -20,9 +22,26 @@ Route::prefix('auth')
             Route::get('me', [AuthController::class, 'me'])->name('me');
             Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
+            // Administración de la empresa activa: personas y roles (permiso org.members.manage en esa empresa).
+            Route::middleware('org.permission:org.members.manage')->prefix('organization')->name('organization.')->group(function (): void {
+                Route::get('/', [OrganizationController::class, 'show'])->name('show');
+                Route::get('roles', [OrganizationController::class, 'roles'])->name('roles');
+                Route::get('members', [OrganizationController::class, 'members'])->name('members');
+                Route::post('members', [OrganizationController::class, 'addMember'])->name('members.add');
+                Route::put('members/{user}', [OrganizationController::class, 'setMemberRoles'])->name('members.roles');
+                Route::delete('members/{user}', [OrganizationController::class, 'removeMember'])->name('members.remove');
+            });
+
             // Gestion de roles: solo administradores.
             Route::middleware('role:admin')->group(function (): void {
+                Route::get('permissions', [RoleController::class, 'permissions'])->name('permissions');
                 Route::apiResource('roles', RoleController::class);
+
+                // Todas las empresas (administrador del sistema)
+                Route::get('admin/organizations', [AdminOrganizationController::class, 'index'])->name('admin.organizations.index');
+                Route::post('admin/organizations', [AdminOrganizationController::class, 'store'])->name('admin.organizations.store');
+                Route::put('admin/organizations/{organization}', [AdminOrganizationController::class, 'update'])->name('admin.organizations.update');
+                Route::get('admin/users', [AdminOrganizationController::class, 'users'])->name('admin.users');
 
                 Route::get('users/{user}/roles', [UserRoleController::class, 'index'])->name('users.roles.index');
                 Route::put('users/{user}/roles', [UserRoleController::class, 'sync'])->name('users.roles.sync');

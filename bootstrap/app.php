@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Middleware\EnsureOrganizationPermission;
 use App\Http\Middleware\EnsureUserHasRole;
 use App\Http\Middleware\UniformApiResponse;
 use App\Domain\Auth\Exceptions\InvalidCredentials;
@@ -24,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'role' => EnsureUserHasRole::class,
+            'org.permission' => EnsureOrganizationPermission::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
