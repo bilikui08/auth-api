@@ -1113,6 +1113,34 @@ anterior; un token desconocido, vencido, cancelado o usado responde lo mismo (40
 límite de frecuencia (30/min consulta, 10/min aceptación). El correo sale en el momento (el hosting no tiene procesos en segundo plano): si
 falla, la invitación queda guardada y se puede reenviar.
 
+### Ajustes del sistema y plantillas de correo (administración del sistema)
+
+El **servidor de correo (SMTP) y todo secreto viven solo en el `.env`**: nunca se editan desde la aplicación (quien pudiera cambiar el SMTP
+controlaría los correos de invitación y de recuperación de cuentas, y la contraseña quedaría en cada backup de la base).
+
+Lo que sí se edita desde la aplicación (rol global `admin`):
+
+| Método | Ruta | Descripción |
+|---|---|---|
+| GET/PUT | `/api/auth/admin/system` | Nombre del sistema (`{"system_name": "Mi ERP"}`; vacío o `null` vuelve al `APP_NAME` del `.env`) |
+| GET | `/api/auth/branding` | **Público**: solo el nombre del sistema (lo muestra el login antes de autenticar) |
+| GET | `/api/auth/admin/email-templates` | Plantillas con el texto vigente, el original y sus variables |
+| PUT | `/api/auth/admin/email-templates/{key}` | Guarda una versión propia: `{subject, heading, body, button_label}` |
+| DELETE | `/api/auth/admin/email-templates/{key}` | Vuelve al original |
+| POST | `/api/auth/admin/email-templates/{key}/preview` | Vista previa (correo completo en HTML con datos de ejemplo) de un borrador, sin guardarlo |
+| POST | `/api/auth/admin/email-templates/{key}/test` | Manda el borrador **a la casilla de quien lo pide** (nunca a otra; 5 por minuto) |
+
+Plantillas (`App\Application\Mail\EmailTemplateRegistry`): `invitation` y `added_to_organization`. Para sumar otra, agregarla ahí y usarla desde un
+Mailable que extienda `TemplatedMail`. El texto admite las variables `{invitador}`, `{empresa}`, `{sistema}` (y `{dias}` en la invitación).
+
+Seguridad de las plantillas (el texto lo escribe una persona y sale por tu remitente con un enlace de acceso):
+- **Nunca se ejecuta como código** (no se compila como Blade): solo se reemplazan variables.
+- **Todo se escapa**, el texto de la plantilla y los valores de las variables (los nombres de personas y empresas los escribe cualquier usuario):
+  no pueden armar enlaces, imágenes ni HTML. Solo se admite `**negrita**`, párrafos y saltos de línea.
+- **No admite enlaces ni HTML propios** (se rechaza al guardar): el enlace del botón lo agrega el sistema, así una plantilla editada no puede
+  mandar a la gente a un sitio ajeno. Tampoco variables desconocidas, ni saltos de línea en el asunto (inyección de encabezados).
+- **Siempre hay un original** en el código: si una versión propia falla al armarse, se usa el original y el correo sale igual.
+
 **Configuración necesaria en producción** (`.env`): `MAIL_MAILER=smtp` con `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`,
 `MAIL_FROM_ADDRESS`, `MAIL_FROM_NAME`; `FRONTEND_URL` con la dirección donde se publique el frontend; y `APP_NAME=Facturín` (es el nombre
 que aparece en el encabezado y el pie de los correos). Con `MAIL_MAILER=log` el correo se escribe en `storage/logs` en lugar de enviarse.

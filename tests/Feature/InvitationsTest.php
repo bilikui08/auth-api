@@ -95,7 +95,7 @@ class InvitationsTest extends TestCase
 
     public function test_the_mails_carry_the_configured_system_name_not_a_hardcoded_one(): void
     {
-        config(['app.name' => 'Mi ERP']);
+        config(['app.default_name' => 'Mi ERP']);
         $this->invite()->assertCreated();
 
         $mail = Mail::sent(InvitationMail::class)->first();

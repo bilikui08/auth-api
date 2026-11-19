@@ -54,6 +54,9 @@ return [
 
     'url' => env('APP_URL', 'http://localhost'),
 
+    // Nombre del sistema por defecto (el del .env); la administración del sistema lo puede cambiar desde la aplicación
+    'default_name' => env('APP_NAME', 'Laravel'),
+
     'frontend_url' => env('FRONTEND_URL', 'http://localhost:3000'),
 
     /*

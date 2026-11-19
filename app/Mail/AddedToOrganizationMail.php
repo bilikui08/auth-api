@@ -2,27 +2,32 @@
 
 namespace App\Mail;
 
+use App\Application\Mail\EmailTemplateRegistry;
 use App\Models\Organization;
-use Illuminate\Mail\Mailable;
-use Illuminate\Mail\Mailables\Content;
-use Illuminate\Mail\Mailables\Envelope;
 
 /** Aviso a una persona que ya tenía cuenta y fue sumada a una empresa. */
-final class AddedToOrganizationMail extends Mailable
+final class AddedToOrganizationMail extends TemplatedMail
 {
     public function __construct(
         public readonly Organization $organization,
         public readonly string $inviterName,
         public readonly string $loginUrl,
-    ) {}
-
-    public function envelope(): Envelope
-    {
-        return new Envelope(subject: "Ahora podés trabajar con {$this->organization->name} en " . config('app.name'));
+    ) {
+        parent::__construct();
     }
 
-    public function content(): Content
+    protected function templateKey(): string
     {
-        return new Content(markdown: 'mail.added-to-organization');
+        return EmailTemplateRegistry::ADDED_TO_ORGANIZATION;
+    }
+
+    protected function variables(): array
+    {
+        return ['invitador' => $this->inviterName, 'empresa' => $this->organization->name];
+    }
+
+    protected function buttonUrl(): string
+    {
+        return $this->loginUrl;
     }
 }
