@@ -29,6 +29,9 @@ final class PermissionCatalog
         'sales.trash.restore-any' => 'Restaurar lo eliminado por otras personas',
         'sales.audit.view-all' => 'Ver la auditoría completa de la empresa',
         'sales.settings.manage' => 'Cambiar la configuración de la empresa',
+        'sales.payment.view' => 'Ver cobros, saldos y estados de cuenta de los clientes',
+        'sales.payment.manage' => 'Registrar y anular cobros, y armar la apertura de la cuenta corriente',
+        'sales.payment.allocate' => 'Imputar cobros a comprobantes',
     ];
 
     /** Rol de fábrica que tiene todos los permisos: el dueño de la empresa. */
@@ -48,7 +51,7 @@ final class PermissionCatalog
         'accountant' => [
             'description' => 'Contador: ve todo y anula comprobantes',
             'permissions' => [
-                'sales.invoice.view', 'sales.invoice.annul', 'sales.customer.view', 'sales.audit.view-all',
+                'sales.invoice.view', 'sales.invoice.annul', 'sales.customer.view', 'sales.audit.view-all', 'sales.payment.view',
             ],
         ],
         'viewer' => [

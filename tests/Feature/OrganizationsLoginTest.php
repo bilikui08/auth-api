@@ -108,6 +108,24 @@ class OrganizationsLoginTest extends TestCase
         $this->assertSame($claims['permissions'], array_values(array_unique($claims['permissions'])), 'sin repetidos');
     }
 
+    public function test_the_receivables_permissions_reach_the_token_of_the_roles_that_have_them(): void
+    {
+        $payment = ['sales.payment.allocate', 'sales.payment.manage', 'sales.payment.view'];
+
+        $ana = $this->user();
+        $this->join($ana, 'Ana SRL', 'company_admin');
+        $admin = $this->claims($this->login()->json('data.tokens.access_token'))['permissions'];
+        $this->assertSame([], array_values(array_diff($payment, $admin)), 'el administrador los tiene todos');
+
+        // El contador solo ve; vendedor y lector no tienen nada de cobros hasta que un administrador se lo asigne
+        foreach (['accountant' => ['sales.payment.view'], 'seller' => [], 'viewer' => []] as $role => $expected) {
+            $granted = DB::table('permission_role')->join('permissions', 'permissions.id', '=', 'permission_role.permission_id')
+                ->where('permission_role.role_id', Role::where('name', $role)->value('id'))->where('permissions.name', 'like', 'sales.payment.%')
+                ->orderBy('permissions.name')->pluck('permissions.name')->all();
+            $this->assertSame($expected, $granted, $role);
+        }
+    }
+
     public function test_a_wrong_password_or_unknown_user_is_a_401_and_issues_nothing(): void
     {
         $this->join($this->user(), 'Ana SRL');
